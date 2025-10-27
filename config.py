@@ -1,38 +1,43 @@
 import pygame as pg
+import math # <-- 新增
 
 # scale unit
-unit = 6 # 這是尺寸的基礎單位，基本上範圍是 3~10
-# 如果畫面太小或太大可以優先調這個
-
-# size
+unit = 6
 grid = 6*unit
 background_color = (33, 47, 60)
 rows = 20
 columns = 10
 
 # --- 1v1 Layout Configuration ---
-P1_BOARD_WIDTH = columns * grid
+GARBAGE_BAR_WIDTH = 2 * unit
+BOARD_WIDTH = columns * grid
 INFO_PANEL_WIDTH = 50 * unit
 
 # P1 positions
-P1_OFFSET_X = 0
-P1_SCORE_POS = (P1_BOARD_WIDTH + 10*unit, rows * grid // 2)
-P1_LINE_POS = (P1_BOARD_WIDTH + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.5))
-P1_NEXT_PIECE_POS = (P1_BOARD_WIDTH + 22*unit, rows * grid // 2 - 30*unit)
+P1_GARBAGE_BAR_POS = (0, 0) # (x, y)
+P1_OFFSET_X = P1_GARBAGE_BAR_POS[0] + GARBAGE_BAR_WIDTH
+P1_INFO_X = P1_OFFSET_X + BOARD_WIDTH
+P1_SCORE_POS = (P1_INFO_X + 10*unit, rows * grid // 2)
+P1_LINE_POS = (P1_INFO_X + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.5))
+P1_NEXT_PIECE_POS = (P1_INFO_X + 22*unit, rows * grid // 2 - 30*unit)
 
 # P2 positions
-P2_OFFSET_X = P1_BOARD_WIDTH + INFO_PANEL_WIDTH
-P2_SCORE_POS = (P2_OFFSET_X + P1_BOARD_WIDTH + 10*unit, rows * grid // 2)
-P2_LINE_POS = (P2_OFFSET_X + P1_BOARD_WIDTH + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.5))
-P2_NEXT_PIECE_POS = (P2_OFFSET_X + P1_BOARD_WIDTH + 22*unit, rows * grid // 2 - 30*unit)
+P2_GARBAGE_BAR_POS = (P1_INFO_X + INFO_PANEL_WIDTH, 0) # (x, y)
+P2_OFFSET_X = P2_GARBAGE_BAR_POS[0] + GARBAGE_BAR_WIDTH
+P2_INFO_X = P2_OFFSET_X + BOARD_WIDTH
+P2_SCORE_POS = (P2_INFO_X + 10*unit, rows * grid // 2)
+P2_LINE_POS = (P2_INFO_X + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.5))
+P2_NEXT_PIECE_POS = (P2_INFO_X + 22*unit, rows * grid // 2 - 30*unit)
 
 # Total screen size
-width = P2_OFFSET_X + P1_BOARD_WIDTH + INFO_PANEL_WIDTH
+width = P2_INFO_X + INFO_PANEL_WIDTH
 height = rows * grid
+# --- End 1v1 Config ---
+
 
 # others
 fps = 60
-difficulty = 20  # 調整降下的速度，數字越大會越慢
+difficulty = 20
 score_count = {
     1: 40,
     2: 100,
@@ -41,118 +46,35 @@ score_count = {
 }
 font = ('Comic Sans MS', int(100 * (unit / 10)**1.5))
 
-#score_pos = (columns * grid + 10*unit, height // 2)
-#line_pos = (columns * grid + 10*unit, height // 2 + font[1])
-#next_piece_pos = (columns * grid + 22*unit, height // 2 - 30*unit)
+
+# --- (新增) Garbage Attack & System Config ---
+ATTACK_BASE = {
+    0: 0, # 0 行
+    1: 0, # Single
+    2: 1, # Double
+    3: 2, # Triple
+    4: 4  # Tetris
+}
+
+# Combo (REN) 攻擊加成 (使用您提供的公式)
+def get_combo_bonus(combo_count):
+    # combo_garbage = max(0, floor((combo-1)/2))
+    if combo_count <= 1:
+        return 0
+    return math.floor((combo_count - 1) / 2)
+
+ATTACK_B2B_BONUS = 1         # B2B 加成 (目前僅 Tetris)
+ATTACK_PERFECT_CLEAR = 4   # All Clear 額外加成
+
+GARBAGE_INSERT_DELAY = 30  # 垃圾行插入節拍 (30 幀插入一次)
+GARBAGE_LINES_PER_INSERT = 1 # 每次插入 1 行
+GARBAGE_HOLE_REPEAT_PROB = 0.7 # 垃圾洞位沿用機率
+GARBAGE_COLOR = (100, 100, 100) # 垃圾行顏色
+# --- (新增結束) ---
+
 
 # shapes: S, Z, I, O, J, L, T
-
-'''
-shape_format = {
-    'S': [['.....',
-           '.....',
-           '..00.',
-           '.00..',
-           '.....'],
-          ['.....',
-           '..0..',
-           '..00.',
-           '...0.',
-           '.....']],
-
-    'Z': [['.....',
-           '.....',
-           '.00..',
-           '..00.',
-           '.....'],
-          ['.....',
-           '..0..',
-           '.00..',
-           '.0...',
-           '.....']],
-
-    'I': [['..0..',
-           '..0..',
-           '..0..',
-           '..0..',
-           '.....'],
-          ['.....',
-           '0000.',
-           '.....',
-           '.....',
-           '.....']],
-
-    'O': [['.....',
-           '.....',
-           '.00..',
-           '.00..',
-           '.....']],
-
-    'J': [['.....',
-           '.0...',
-           '.000.',
-           '.....',
-           '.....'],
-          ['.....',
-           '..00.',
-           '..0..',
-           '..0..',
-           '.....'],
-          ['.....',
-           '.....',
-           '.000.',
-           '...0.',
-           '.....'],
-          ['.....',
-           '..0..',
-           '..0..',
-           '.00..',
-           '.....']],
-
-    'L': [['.....',
-           '...0.',
-           '.000.',
-           '.....',
-           '.....'],
-          ['.....',
-           '..0..',
-           '..0..',
-           '..00.',
-           '.....'],
-          ['.....',
-           '.....',
-           '.000.',
-           '.0...',
-           '.....'],
-          ['.....',
-           '.00..',
-           '..0..',
-           '..0..',
-           '.....']],
-
-    'T': [['.....',
-           '..0..',
-           '.000.',
-           '.....',
-           '.....'],
-          ['.....',
-           '..0..',
-           '..00.',
-           '..0..',
-           '.....'],
-          ['.....',
-           '.....',
-           '.000.',
-           '..0..',
-           '.....'],
-          ['.....',
-           '..0..',
-           '.00..',
-           '..0..',
-           '.....']]
-}
-'''
-
+# (shapes 內容保持不變... )
 shapes = {
     'S': [
         [(0, 0), (0, 1), (1, -1), (1, 0)],
@@ -188,7 +110,7 @@ shapes = {
         [(-1, 0), (0, -1), (0, 0), (1, 0)],
     ],
 }
-
+# (shape_colors 內容保持不變... )
 SHADOW = (192, 192, 192)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
