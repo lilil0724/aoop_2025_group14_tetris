@@ -1,5 +1,6 @@
 import config
 
+
 def getCellsAbsolutePosition(piece):
     '''取得方塊當前所有方格的座標'''
     return [(y + piece.y, x + piece.x) for y, x in piece.getCells()]
