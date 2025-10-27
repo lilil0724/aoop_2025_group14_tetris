@@ -10,7 +10,24 @@ background_color = (33, 47, 60)
 rows = 20
 columns = 10
 
-width = columns * grid + 50*unit
+# --- 1v1 Layout Configuration ---
+P1_BOARD_WIDTH = columns * grid
+INFO_PANEL_WIDTH = 50 * unit
+
+# P1 positions
+P1_OFFSET_X = 0
+P1_SCORE_POS = (P1_BOARD_WIDTH + 10*unit, rows * grid // 2)
+P1_LINE_POS = (P1_BOARD_WIDTH + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.5))
+P1_NEXT_PIECE_POS = (P1_BOARD_WIDTH + 22*unit, rows * grid // 2 - 30*unit)
+
+# P2 positions
+P2_OFFSET_X = P1_BOARD_WIDTH + INFO_PANEL_WIDTH
+P2_SCORE_POS = (P2_OFFSET_X + P1_BOARD_WIDTH + 10*unit, rows * grid // 2)
+P2_LINE_POS = (P2_OFFSET_X + P1_BOARD_WIDTH + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.5))
+P2_NEXT_PIECE_POS = (P2_OFFSET_X + P1_BOARD_WIDTH + 22*unit, rows * grid // 2 - 30*unit)
+
+# Total screen size
+width = P2_OFFSET_X + P1_BOARD_WIDTH + INFO_PANEL_WIDTH
 height = rows * grid
 
 # others
@@ -23,9 +40,10 @@ score_count = {
     4: 1200
 }
 font = ('Comic Sans MS', int(100 * (unit / 10)**1.5))
-score_pos = (columns * grid + 10*unit, height // 2)
-line_pos = (columns * grid + 10*unit, height // 2 + font[1])
-next_piece_pos = (columns * grid + 22*unit, height // 2 - 30*unit)
+
+#score_pos = (columns * grid + 10*unit, height // 2)
+#line_pos = (columns * grid + 10*unit, height // 2 + font[1])
+#next_piece_pos = (columns * grid + 22*unit, height // 2 - 30*unit)
 
 # shapes: S, Z, I, O, J, L, T
 
