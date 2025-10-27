@@ -47,6 +47,23 @@ score_count = {
 font = ('Comic Sans MS', int(100 * (unit / 10)**1.5))
 # (移除了舊的單人遊戲 score_pos, line_pos, speed_pos 等)
 
+# --- Single Player Configuration ---
+SINGLE_BOARD_WIDTH = columns * grid
+SINGLE_INFO_PANEL_WIDTH = 50 * unit
+
+# Single player positions
+SINGLE_OFFSET_X = 0
+SINGLE_INFO_X = SINGLE_OFFSET_X + SINGLE_BOARD_WIDTH
+SINGLE_SCORE_POS = (SINGLE_INFO_X + 10*unit, height // 2)
+SINGLE_LINE_POS = (SINGLE_INFO_X + 10*unit, height // 2 + int(100 * (unit / 10)**1.5))
+SINGLE_SPEED_POS = (SINGLE_INFO_X + 10*unit, height // 2 + int(100 * (unit / 10)**1.5) * 2)
+SINGLE_NEXT_PIECE_POS = (SINGLE_INFO_X + 22*unit, height // 2 - 30*unit)
+
+# Single player screen size
+SINGLE_WIDTH = SINGLE_INFO_X + SINGLE_INFO_PANEL_WIDTH
+SINGLE_HEIGHT = rows * grid
+# --- End Single Player Config ---
+
 
 # --- (新增) Garbage Attack & System Config ---
 ATTACK_BASE = {
