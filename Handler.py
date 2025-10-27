@@ -48,7 +48,7 @@ def instantDrop(shot, piece):
         piece.y += 1
     fixPiece(shot, piece)
 
-# 旋轉方塊（若旋轉後越界或撞到，則還原）
+# 旋轉方塊（若旋轉後越界或撞到，則還原） //
 def rotate(shot, piece):
     old_rot = piece.rotation
     piece.rotation += 1
