@@ -221,7 +221,7 @@ def main():
                         key_ticker2[pg.K_RIGHT] = 13
                         Handler.moveRight(shot2, piece2)
                     # --- (修改 2) ---
-                    if event.key == pg.K_SPACE: # P2 瞬降 (原為 K_RETURN)
+                    if event.key == pg.K_RSHIFT: # P2 瞬降 (使用 Right Shift)
                         Handler.instantDrop(shot2, piece2)
 
         # --- 按鍵長按處理 ---
