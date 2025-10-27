@@ -29,7 +29,7 @@ def draw_grid(surface, offset_x):
 
 
 # 'update' 函數被重構為 'draw_player_ui'
-def draw_player_ui(screen, shot, piece, next_piece, font, offset_x, score_pos, line_pos, next_piece_pos,speed_pos,garbage_pos):
+def draw_player_ui(screen, shot, piece, next_piece, font, offset_x, score_pos, line_pos, next_piece_pos,speed_pos,garbage_bar_pos):
     # screen.fill(config.background_color) # <-- 這將移到主迴圈中
     
     # 1. 更新 shot 狀態 (邏輯)
