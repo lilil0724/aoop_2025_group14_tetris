@@ -13,4 +13,5 @@ class Shot(object):
         self.status = [[ 0 for _ in range(config.columns)] for __ in range(config.rows) ] 
         self.line_count = 0
         self.score = 0
+        self.speed = 1
         

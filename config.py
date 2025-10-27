@@ -15,7 +15,9 @@ height = rows * grid
 
 # others
 fps = 60
-difficulty = 20  # 調整降下的速度，數字越大會越慢
+difficulty = 30   # 調整降下的速度，數字越大會越慢
+speed_increment = 3
+line_to_speedup = 2
 score_count = {
     1: 40,
     2: 100,
@@ -25,6 +27,7 @@ score_count = {
 font = ('Comic Sans MS', int(100 * (unit / 10)**1.5))
 score_pos = (columns * grid + 10*unit, height // 2)
 line_pos = (columns * grid + 10*unit, height // 2 + font[1])
+speed_pos = (columns * grid + 10*unit, height // 2 + font[1] * 2)
 next_piece_pos = (columns * grid + 22*unit, height // 2 - 30*unit)
 
 # shapes: S, Z, I, O, J, L, T

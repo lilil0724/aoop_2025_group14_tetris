@@ -64,6 +64,10 @@ def update(screen, shot, piece, next_piece, font):
         shot.line_count), False, (255, 255, 255))
     screen.blit(textsurface, config.line_pos)
 
+    textsurface = font.render('Speed: {}'.format(
+        shot.speed), False, (255, 255, 255))
+    screen.blit(textsurface, config.speed_pos)
+
     # next piece (background)
     for y in range(-2, 3):
         for x in range(-2, 3):
@@ -141,6 +145,10 @@ def main():
         if piece.is_fixed: # 正把方塊固定時觸發的動作
             Handler.eliminateFilledRows(shot, piece)
             piece, next_piece = next_piece, getRandomPiece()
+        if shot.line_count % config.line_to_speedup == 0 and shot.line_count != 0:
+            shot.speed += 1
+            config.difficulty -= config.speed_increment
+            shot.line_count += 1 # 避免重複加速
         if not Handler.isDefeat(shot, piece):
             update(screen, shot, piece, next_piece, myfont)
         else:
