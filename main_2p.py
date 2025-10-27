@@ -30,7 +30,7 @@ def draw_grid(surface, offset_x): # <-- 增加 offset_x 參數
 
 
 # 'update' 函數被重構為 'draw_player_ui'
-def draw_player_ui(screen, shot, piece, next_piece, font, offset_x, score_pos, line_pos, next_piece_pos):
+def draw_player_ui(screen, shot, piece, next_piece, font, offset_x, score_pos, line_pos, speed_pos, next_piece_pos):
     # screen.fill(config.background_color) # <-- 這將移到主迴圈中
     
     # 1. 更新 shot 狀態 (邏輯)
@@ -68,7 +68,12 @@ def draw_player_ui(screen, shot, piece, next_piece, font, offset_x, score_pos, l
         shot.line_count), False, (255, 255, 255))
     screen.blit(textsurface, line_pos) # <-- 使用傳入的 pos
 
-    # 5. 繪製下一個方塊 (背景)
+    # 5. 繪製速度
+    textsurface = font.render('Speed: {}'.format(
+        shot.speed), False, (255, 255, 255))
+    screen.blit(textsurface, speed_pos) # <-- 使用傳入的 pos
+
+    # 6. 繪製下一個方塊 (背景)
     for y in range(-2, 3):
         for x in range(-2, 3):
             pg.draw.rect(screen, (50, 50, 50), (
@@ -78,7 +83,7 @@ def draw_player_ui(screen, shot, piece, next_piece, font, offset_x, score_pos, l
                 config.grid
             ))
 
-    # 6. 繪製下一個方塊 (方塊本身)
+    # 7. 繪製下一個方塊 (方塊本身)
     for y, x in next_piece.getCells():
         color = next_piece.color
         pg.draw.rect(screen, color, (
@@ -88,7 +93,7 @@ def draw_player_ui(screen, shot, piece, next_piece, font, offset_x, score_pos, l
             config.grid
         ))
     
-    # 7. 繪製網格
+    # 8. 繪製網格
     draw_grid(screen, offset_x)
 
 
@@ -107,6 +112,7 @@ def main():
     counter1 = 0
     key_ticker1 = {pg.K_a: 0, pg.K_s: 0, pg.K_d: 0} # 初始化 P1 按鍵
     game_over1 = False
+    last_speedup1 = 0  # Track last speedup milestone for P1
 
     # --- P2 遊戲狀態 ---
     shot2 = shots.Shot()
@@ -115,20 +121,21 @@ def main():
     counter2 = 0
     key_ticker2 = {pg.K_LEFT: 0, pg.K_DOWN: 0, pg.K_RIGHT: 0} # 初始化 P2 按鍵
     game_over2 = False
+    last_speedup2 = 0  # Track last speedup milestone for P2
 
     run = True
     while run:
         # --- 自動下落計時器 ---
         if not DEBUG:
             if not game_over1:
-                if counter1 == config.difficulty:
+                if counter1 >= shot1.difficulty:
                     Handler.drop(shot1, piece1)
                     counter1 = 0
                 else:
                     counter1 += 1
             
             if not game_over2:
-                if counter2 == config.difficulty:
+                if counter2 >= shot2.difficulty:
                     Handler.drop(shot2, piece2)
                     counter2 = 0
                 else:
@@ -215,6 +222,13 @@ def main():
                 Handler.eliminateFilledRows(shot1, piece1)
                 piece1, next_piece1 = next_piece1, getRandomPiece()
             
+            # Speed up logic for P1
+            current_speedup_milestone1 = (shot1.line_count // config.line_to_speedup) * config.line_to_speedup
+            if current_speedup_milestone1 > last_speedup1 and current_speedup_milestone1 > 0:
+                shot1.speed += 1
+                shot1.difficulty -= config.speed_increment
+                last_speedup1 = current_speedup_milestone1
+            
             if Handler.isDefeat(shot1, piece1):
                 game_over1 = True
                 print("Player 1 Game Over!!")
@@ -226,6 +240,13 @@ def main():
             if piece2.is_fixed: # 正把方塊固定時觸發的動作
                 Handler.eliminateFilledRows(shot2, piece2)
                 piece2, next_piece2 = next_piece2, getRandomPiece()
+            
+            # Speed up logic for P2
+            current_speedup_milestone2 = (shot2.line_count // config.line_to_speedup) * config.line_to_speedup
+            if current_speedup_milestone2 > last_speedup2 and current_speedup_milestone2 > 0:
+                shot2.speed += 1
+                shot2.difficulty -= config.speed_increment
+                last_speedup2 = current_speedup_milestone2
             
             if Handler.isDefeat(shot2, piece2):
                 game_over2 = True
@@ -243,12 +264,12 @@ def main():
         if not game_over1:
             draw_player_ui(screen, shot1, piece1, next_piece1, myfont,
                            config.P1_OFFSET_X, config.P1_SCORE_POS, 
-                           config.P1_LINE_POS, config.P1_NEXT_PIECE_POS)
+                           config.P1_LINE_POS, config.P1_SPEED_POS, config.P1_NEXT_PIECE_POS)
         
         if not game_over2:
             draw_player_ui(screen, shot2, piece2, next_piece2, myfont,
                            config.P2_OFFSET_X, config.P2_SCORE_POS,
-                           config.P2_LINE_POS, config.P2_NEXT_PIECE_POS)
+                           config.P2_LINE_POS, config.P2_SPEED_POS, config.P2_NEXT_PIECE_POS)
 
         pg.display.update()
         fpsClock.tick(config.fps)

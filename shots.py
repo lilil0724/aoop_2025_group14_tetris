@@ -14,4 +14,4 @@ class Shot(object):
         self.line_count = 0
         self.score = 0
         self.speed = 1
-        
+        self.difficulty = config.difficulty
