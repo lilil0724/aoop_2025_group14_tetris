@@ -1,0 +1,52 @@
+# ==========================================
+# Python + pygame project .gitignore
+# ==========================================
+
+# --- Virtual environment folders ---
+venv/
+.venv/
+env/
+.env/
+*/venv/
+*/.venv/
+*/env/
+*/.env/
+
+# --- Python cache files ---
+__pycache__/
+*/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+
+# --- Pygame & other site-packages (installed libs) ---
+Lib/
+lib/
+Scripts/
+bin/
+include/
+share/
+pyvenv.cfg
+
+# --- Build & distribution ---
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Logs & temp files ---
+*.log
+*.tmp
+
+# --- System / IDE files ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# --- Environment / config ---
+.envrc
+.env.local
