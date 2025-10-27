@@ -16,7 +16,7 @@ height = rows * grid
 # others
 fps = 60
 difficulty = 40  # 初始難度 (每多少幀下降一格，數字越小越快)
-lines_per_level = 10  # 每消除多少行就提升一級
+lines_per_level = 5  # 每消除多少行就提升一級
 speed_increment = 3  # 每升一級，difficulty減少的量
 min_difficulty = 5  # 難度的最小值 (速度的上限)
 score_count = {
