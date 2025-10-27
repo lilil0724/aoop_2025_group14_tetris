@@ -1,7 +1,7 @@
 import pygame as pg
 import pieces
 import shots
-import config
+import config_solo as config
 import Handler
 import random
 

@@ -14,7 +14,7 @@ class Shot(object):
         self.status = [[ 0 for _ in range(config.columns)] for __ in range(config.rows) ] 
         self.line_count = 0
         self.score = 0
-        # self.speed = 1 (移除)
+        self.speed = 1
         
         # --- (新增) 1v1 攻擊/垃圾行狀態 ---
         self.pending_garbage = 0       # 待處理的垃圾行總數 (整數)
