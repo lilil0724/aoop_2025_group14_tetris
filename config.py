@@ -1,7 +1,7 @@
 import pygame as pg
 
 # scale unit
-unit = 5 # 這是尺寸的基礎單位，基本上範圍是 3~10
+unit = 6 # 這是尺寸的基礎單位，基本上範圍是 3~10
 # 如果畫面太小或太大可以優先調這個
 
 # size

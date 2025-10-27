@@ -15,9 +15,23 @@ def getRandomPiece():
     piece = pieces.Piece(*init_start, shape)
     return piece
 
+def draw_grid(surface):
+    """半透明灰色格線"""
+    grid_surface = pg.Surface(
+        (config.columns * config.grid, config.rows * config.grid), pg.SRCALPHA
+    )
+    # 顏色最後一個值是 alpha (透明度)，0=全透明，255=不透明
+    color = (150, 150, 150, 60)  # 灰白色 + 淡淡透明感
+    for y in range(config.rows):
+        pg.draw.line(grid_surface, color, (0, y * config.grid), (config.columns * config.grid, y * config.grid))
+    for x in range(config.columns):
+        pg.draw.line(grid_surface, color, (x * config.grid, 0), (x * config.grid, config.rows * config.grid))
+    surface.blit(grid_surface, (0, 0))
+
 
 def update(screen, shot, piece, next_piece, font):
     screen.fill(config.background_color)
+    
 
     for y in range(config.rows):
         for x in range(config.columns):
@@ -69,6 +83,7 @@ def update(screen, shot, piece, next_piece, font):
             config.grid,
             config.grid
         ))
+    draw_grid(screen)
 
 
 def main():
