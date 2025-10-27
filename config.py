@@ -28,6 +28,24 @@ P2_NEXT_PIECE_POS = (P2_OFFSET_X + P1_BOARD_WIDTH + 22*unit, rows * grid // 2 - 
 
 # Total screen size
 width = P2_OFFSET_X + P1_BOARD_WIDTH + INFO_PANEL_WIDTH
+# --- 1v1 Layout Configuration ---
+P1_BOARD_WIDTH = columns * grid
+INFO_PANEL_WIDTH = 50 * unit
+
+# P1 positions
+P1_OFFSET_X = 0
+P1_SCORE_POS = (P1_BOARD_WIDTH + 10*unit, rows * grid // 2)
+P1_LINE_POS = (P1_BOARD_WIDTH + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.5))
+P1_NEXT_PIECE_POS = (P1_BOARD_WIDTH + 22*unit, rows * grid // 2 - 30*unit)
+
+# P2 positions
+P2_OFFSET_X = P1_BOARD_WIDTH + INFO_PANEL_WIDTH
+P2_SCORE_POS = (P2_OFFSET_X + P1_BOARD_WIDTH + 10*unit, rows * grid // 2)
+P2_LINE_POS = (P2_OFFSET_X + P1_BOARD_WIDTH + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.5))
+P2_NEXT_PIECE_POS = (P2_OFFSET_X + P1_BOARD_WIDTH + 22*unit, rows * grid // 2 - 30*unit)
+
+# Total screen size
+width = P2_OFFSET_X + P1_BOARD_WIDTH + INFO_PANEL_WIDTH
 height = rows * grid
 
 # others
