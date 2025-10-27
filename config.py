@@ -17,7 +17,7 @@ height = rows * grid
 fps = 60
 difficulty = 30   # 調整降下的速度，數字越大會越慢
 speed_increment = 3
-line_to_speedup = 2
+line_to_speedup = 3
 score_count = {
     1: 40,
     2: 100,
