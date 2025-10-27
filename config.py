@@ -15,10 +15,7 @@ height = rows * grid
 
 # others
 fps = 60
-difficulty = 40  # 初始難度 (每多少幀下降一格，數字越小越快)
-lines_per_level = 5  # 每消除多少行就提升一級
-speed_increment = 3  # 每升一級，difficulty減少的量
-min_difficulty = 5  # 難度的最小值 (速度的上限)
+difficulty = 20  # 調整降下的速度，數字越大會越慢
 score_count = {
     1: 40,
     2: 100,
@@ -26,11 +23,7 @@ score_count = {
     4: 1200
 }
 font = ('Comic Sans MS', int(100 * (unit / 10)**1.5))
-score_pos = (width + 50, 150)
-line_pos = (width + 50, 200)
-level_pos = (width + 50, 250)
-speed_pos = (width + 50, 300) # --- 新增這一行，用於顯示速度 ---
-next_piece_pos = (width + 120, 400) # 稍微往下移一點，避免重疊
+score_pos = (columns * grid + 10*unit, height // 2)
 line_pos = (columns * grid + 10*unit, height // 2 + font[1])
 next_piece_pos = (columns * grid + 22*unit, height // 2 - 30*unit)
 
