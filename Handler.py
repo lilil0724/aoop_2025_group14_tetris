@@ -66,16 +66,28 @@ def rotate(shot, piece):
 
 # 判斷是否死掉（出局）
 def isDefeat(shot, piece):
-    # 1) 新方塊生成時就與已固定方塊重疊
-    overlap = any(
-        (0 <= y < config.rows and 0 <= x < config.columns and shot.status[y][x] == 2)
-        for y, x in getCellsAbsolutePosition(piece)
-    )
-    if overlap:
-        return True
-    # 2) 方塊固定後，其中任一格仍在天花板上方（y<0）
-    if getattr(piece, "is_fixed", False) and any(y < 0 for y, _ in getCellsAbsolutePosition(piece)):
-        return True
+    """
+    判斷是否死掉（出局）。
+    修正了判斷邏輯，使其更符合標準俄羅斯方塊規則。
+    """
+    # 死亡條件：當一個「還未固定」的方塊，在它的當前位置
+    # (通常是生成點) 就已經不合法時，才算死亡。
+    # 「不合法」意味著與現有方塊重疊。
+    
+    # 如果方塊已經被固定了，它就不可能造成「新」的失敗條件。
+    if getattr(piece, 'is_fixed', False):
+        return False
+        
+    # 核心邏輯：檢查新生成的方塊是否與盤面上已有的方塊重疊。
+    # 這通常發生在方塊堆得太高，導致新方塊沒有空間生成。
+    for y_cell, x_cell in getCellsAbsolutePosition(piece):
+        # 只檢查在遊戲盤面內的格子
+        if 0 <= y_cell < config.rows and 0 <= x_cell < config.columns:
+            if shot.status[y_cell][x_cell] == 2:
+                # 發現重疊，這意味著遊戲結束
+                return True
+                
+    # 如果遍歷完所有格子都沒有發現重疊，則遊戲尚未結束
     return False
 
 # 消去列（自底向上檢查；清除一列後把上面整體下移）
