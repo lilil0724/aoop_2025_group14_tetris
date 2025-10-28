@@ -11,6 +11,30 @@ DEBUG = False
 
 init_start = (5, 0) # 放置新方塊的位置 (邏輯座標)
 
+USE_TRAINED_AI = True
+
+if USE_TRAINED_AI:
+    try:
+        from ai_player_v2 import AIPlayer
+        # 使用新的工廠方法從檔案創建，程式碼更清晰
+        ai_player_instance = AIPlayer.from_file(weights_path='trained_weights.json')
+        print("INFO: 正在使用「已訓練」的 AI 版本。")
+    except Exception:
+        # 如果載入已訓練 AI 失敗，退回到原始 ai_player 實作
+        import ai_player as ai_module
+        class OriginalAIWrapper:
+            def find_best_move(self, shot, piece):
+                return ai_module.find_best_move(shot, piece)
+        ai_player_instance = OriginalAIWrapper()
+        print("WARNING: 無法載入 ai_player_v2，改為使用「原始」的 AI 版本。")
+else:
+    import ai_player as ai_module
+    class OriginalAIWrapper:
+        def find_best_move(self, shot, piece):
+            return ai_module.find_best_move(shot, piece)
+    ai_player_instance = OriginalAIWrapper()
+    print("INFO: 正在使用「原始」的 AI 版本。")
+
 
 def getRandomPiece():
     shape = random.choice(list(config.shapes.keys()))
@@ -337,7 +361,9 @@ def main():
                 if not game_over2:
                     # 1. 呼叫 AI 找到最佳移動
                     #    我們傳入 "copy" 是為了確保 AI 不會不小心改到真實的遊戲狀態
-                    best_move = ai_player.find_best_move(copy.deepcopy(shot2), copy.deepcopy(piece2))
+                    # 修改後的程式碼
+                    best_move = ai_player_instance.find_best_move(copy.deepcopy(shot2), copy.deepcopy(piece2))
+
 
                     if best_move:
                         # 2. 應用 AI 的決策

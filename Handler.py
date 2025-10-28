@@ -183,3 +183,28 @@ def insertGarbage(shot, lines_to_add):
             else:
                 shot.status[y][x] = 2 # 垃圾 (固定方塊)
                 shot.color[y][x] = config.GARBAGE_COLOR
+
+def isValidPosition(shot, piece):
+    """
+    檢查一個方塊在當前位置是否合法（未超出邊界且未與現有方塊重疊）。
+    這是一個通用的檢查函式，對於 AI 模擬至關重要。
+    
+    :param shot: 當前的盤面狀態物件。
+    :param piece: 要檢查的方塊物件。
+    :return: 如果位置合法，返回 True；否則返回 False。
+    """
+    # 取得方塊每個格子的絕對座標
+    cells = getCellsAbsolutePosition(piece)
+
+    for y, x in cells:
+        # 1. 邊界檢查：是否超出左右邊界或底部邊界
+        if not (0 <= x < config.columns and y < config.rows):
+            return False
+            
+        # 2. 碰撞檢查：是否與已固定的方塊重疊
+        #    - y < 0 表示方塊還在頂部緩衝區，此時不檢查碰撞
+        #    - shot.status[y][x] == 2 表示該位置已有固定方塊
+        if y >= 0 and shot.status[y][x] == 2:
+            return False
+            
+    return True
