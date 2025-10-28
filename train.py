@@ -1,9 +1,10 @@
-# train.py
+# train.py (Multi-core / Parallel Processing Version)
 import json
 import random
 import copy
 import numpy as np
-from tqdm import tqdm  # 用於顯示進度條，需要 pip install tqdm
+from tqdm import tqdm
+import multiprocessing # <--- 核心模組：導入多處理函式庫
 
 # 導入遊戲核心邏輯
 import config
@@ -13,14 +14,13 @@ import shots
 from ai_player_v2 import AIPlayer
 
 # --- 遺傳演算法參數 ---
-POPULATION_SIZE = 50      # 每一代的個體數量 (AI數量)
-GENERATIONS = 30          # 總共要演化的世代數
-MUTATION_RATE = 0.1       # 基因突變的機率
-MUTATION_STRENGTH = 0.2   # 突變的強度
-GAMES_PER_AI = 3          # 每個 AI 要玩幾場遊戲來評估適應度
-MAX_MOVES = 500           # 每場遊戲的最大步數，防止無限循環
+POPULATION_SIZE = 50
+GENERATIONS = 30
+MUTATION_RATE = 0.1
+MUTATION_STRENGTH = 0.2
+GAMES_PER_AI = 5  # <-- 可以適當增加，讓評估更準確
+MAX_MOVES = 500
 
-# 權重值的範圍
 WEIGHT_RANGES = {
     'lines_cleared': (0, 1),
     'aggregate_height': (-1, 0),
@@ -35,43 +35,46 @@ def create_individual():
         for key, (low, high) in WEIGHT_RANGES.items()
     }
 
-def run_simulation(ai_player):
+# --- 核心改造 1：建立獨立的「測驗函式」 ---
+def evaluate_fitness(individual):
     """
-    運行一場無圖形介面的遊戲來評估 AI 的表現。
-    返回這場遊戲的適應度分數 (修正為：總共放置的方塊數，代表存活能力)。
+    評估單一個體的適應度。這個函式將被發送到不同的 CPU 核心上執行。
     """
-    game_shot = shots.Shot()
-    shape1 = random.choice(list(config.shapes.keys()))
-    current_piece = pieces.Piece(5, 0, shape1)
-    shape2 = random.choice(list(config.shapes.keys()))
-    next_piece = pieces.Piece(5, 0, shape2)
+    ai_player = AIPlayer(weights=individual)
     
-    moves_made = 0 # <--- 新增：用來計算存活步數
-    
-    for _ in range(MAX_MOVES):
-        if Handler.isDefeat(game_shot, current_piece):
-            break
-
-        best_move = ai_player.find_best_move(game_shot, current_piece)
-        if best_move is None:
-            break
-
-        current_piece.x, current_piece.rotation = best_move
-        Handler.instantDrop(game_shot, current_piece)
-        Handler.eliminateFilledRows(game_shot, current_piece)
+    total_moves = 0
+    for _ in range(GAMES_PER_AI):
+        game_shot = shots.Shot()
+        shape1 = random.choice(list(config.shapes.keys()))
+        current_piece = pieces.Piece(5, 0, shape1)
+        shape2 = random.choice(list(config.shapes.keys()))
+        next_piece = pieces.Piece(5, 0, shape2)
         
-        moves_made += 1 # <--- 每成功放置一個方塊，計數器+1
-        
-        shape3 = random.choice(list(config.shapes.keys()))
-        current_piece, next_piece = next_piece, pieces.Piece(5, 0, shape3)
+        moves_made = 0
+        for _ in range(MAX_MOVES):
+            if Handler.isDefeat(game_shot, current_piece):
+                break
 
-    return moves_made # <--- 修正：返回存活的步數
+            best_move = ai_player.find_best_move(game_shot, current_piece)
+            if best_move is None:
+                break
+
+            current_piece.x, current_piece.rotation = best_move
+            Handler.instantDrop(game_shot, current_piece)
+            Handler.eliminateFilledRows(game_shot, current_piece)
+            
+            moves_made += 1
+            
+            shape3 = random.choice(list(config.shapes.keys()))
+            current_piece, next_piece = next_piece, pieces.Piece(5, 0, shape3)
+        total_moves += moves_made
+        
+    return total_moves / GAMES_PER_AI # 返回平均存活步數
 
 def crossover(parent1, parent2):
     """將兩個親代的權重進行交叉，產生一個子代"""
     child = {}
     for key in parent1:
-        # 隨機選擇繼承父親或母親的基因
         child[key] = random.choice([parent1[key], parent2[key]])
     return child
 
@@ -82,32 +85,24 @@ def mutate(individual):
         if random.random() < MUTATION_RATE:
             change = random.uniform(-MUTATION_STRENGTH, MUTATION_STRENGTH)
             mutated_individual[key] += change
-            # 確保突變後的值仍在合理範圍內
             low, high = WEIGHT_RANGES[key]
             mutated_individual[key] = np.clip(mutated_individual[key], low, high)
     return mutated_individual
 
 def main():
-    """遺傳演算法主函式"""
-    # 1. 初始化第一代族群
+    """遺傳演算法主函式 (多核心版本)"""
     population = [create_individual() for _ in range(POPULATION_SIZE)]
 
     for gen in range(GENERATIONS):
         print(f"\n===== 世代 {gen + 1}/{GENERATIONS} =====")
         
-        # 2. 評估每個個體的適應度
-        fitness_scores = []
-        for i in tqdm(range(POPULATION_SIZE), desc="評估適應度"):
-            individual = population[i]
-            ai_player = AIPlayer(weights=individual) # 直接在創建時植入獨立大腦
-            
-            scores = [run_simulation(ai_player) for _ in range(GAMES_PER_AI)]
-            avg_score = sum(scores) / len(scores)
-            fitness_scores.append(avg_score)
+        # --- 核心改造 2：使用 Pool.map 進行平行評估 ---
+        # Pool() 會自動偵測您電腦的 CPU 核心數並全部使用
+        with multiprocessing.Pool() as pool:
+            # 使用 tqdm 顯示進度條
+            # pool.imap 的 "i" 代表 iterator，它能讓 tqdm 在任務完成時逐步更新
+            fitness_scores = list(tqdm(pool.imap(evaluate_fitness, population), total=POPULATION_SIZE, desc="評估適應度"))
 
-        # 3. 選擇、交叉、突變以產生新一代
-        
-        # 將族群和分數打包並排序
         sorted_population = sorted(zip(population, fitness_scores), key=lambda x: x[1], reverse=True)
         
         best_individual, best_fitness = sorted_population[0]
@@ -116,45 +111,40 @@ def main():
 
         next_generation = []
         
-        # 保留前 10% 的菁英直接進入下一代 (菁英選擇)
         elite_count = POPULATION_SIZE // 10
         elites = [ind for ind, score in sorted_population[:elite_count]]
         next_generation.extend(elites)
         
-        # 產生剩餘的 90%
         parents = [ind for ind, score in sorted_population]
         while len(next_generation) < POPULATION_SIZE:
-            # 從表現較好的前半段中選擇父母
             parent1 = random.choice(parents[:POPULATION_SIZE // 2])
             parent2 = random.choice(parents[:POPULATION_SIZE // 2])
-            
             child = crossover(parent1, parent2)
             mutated_child = mutate(child)
             next_generation.append(mutated_child)
             
         population = next_generation
 
-    # 訓練結束後，找出最終的冠軍
     print("\n===== 訓練完成 =====")
-    final_fitness_scores = []
-    for individual in tqdm(population, desc="最終評估"):
-        ai_player = AIPlayer()
-        ai_player.weights = individual
-        scores = [run_simulation(ai_player) for _ in range(GAMES_PER_AI * 2)] # 更嚴格的最終測試
-        final_fitness_scores.append(sum(scores) / len(scores))
-
-    best_final_individual = sorted(zip(population, final_fitness_scores), key=lambda x: x[1], reverse=True)[0][0]
+    # ... (最終評估和儲存部分保持不變) ...
+    print("正在進行最終的嚴格評估...")
+    with multiprocessing.Pool() as pool:
+        final_fitness_scores = list(tqdm(pool.imap(evaluate_fitness, population), total=POPULATION_SIZE, desc="最終評估"))
     
+    best_final_individual, best_score = sorted(zip(population, final_fitness_scores), key=lambda x: x[1], reverse=True)[0]
+    
+    print(f"\n訓練出的最終冠軍 AI 平均存活步數: {best_score:.2f}")
     print("訓練出的最佳權重為:")
     print(json.dumps(best_final_individual, indent=4))
 
-    # 將最佳權重儲存到檔案
     output_path = 'trained_weights.json'
     with open(output_path, 'w') as f:
         json.dump(best_final_individual, f, indent=4)
     print(f"\n最佳權重已儲存至 {output_path}")
 
-
+# --- 核心改造 3：使用 if __name__ == '__main__': 保護主程式 ---
 if __name__ == '__main__':
+    # 這行可以確保在 Windows 等系統下，子處理程序不會錯誤地重複執行 main()
+    multiprocessing.freeze_support() 
     main()
 
