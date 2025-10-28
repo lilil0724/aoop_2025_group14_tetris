@@ -102,6 +102,8 @@ def main():
     piece = getRandomPiece()
     next_piece = getRandomPiece()
 
+    
+
     update(screen, shot, piece, next_piece, myfont)
     run = True
     counter = 0
