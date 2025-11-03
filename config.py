@@ -7,6 +7,7 @@ grid = 6*unit
 background_color = (33, 47, 60)
 rows = 20
 columns = 10
+init_start = (5, 0) # <--- 新增這一行：定義新方塊的起始位置
 
 # --- 1v1 Layout Configuration ---
 GARBAGE_BAR_WIDTH = 2 * unit # <-- 新增垃圾條寬度

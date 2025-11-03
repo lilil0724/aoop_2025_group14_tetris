@@ -1,139 +1,123 @@
+# dqn_agent.py
+
 import torch
 import torch.nn as nn
-import torch.optim as optim
+import torch.nn.functional as F
+import math
 import random
 import numpy as np
 from collections import deque
 
-class QNetwork(nn.Module):
-    """我們的神經網路，輸入是狀態特徵，輸出一維的 Q-value"""
-    def __init__(self, state_size, hidden_size=128):
-        super(QNetwork, self).__init__()
-        self.fc1 = nn.Linear(state_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.fc3 = nn.Linear(hidden_size, 1) # 輸出只有一個 Q-value
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model: int, max_len: int = 5000):
+        super().__init__()
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        return self.fc3(x)
+        x = x + self.pe[:x.size(0)]
+        return x
+
+class TetrisTransformer(nn.Module):
+    def __init__(self, channels=2, rows=20, cols=10, d_model=128, nhead=8, num_layers=4):
+        super().__init__()
+        self.d_model = d_model
+        self.conv = nn.Conv2d(channels, d_model, kernel_size=3, padding=1)
+        self.bn = nn.BatchNorm2d(d_model)
+        self.pos_encoder = PositionalEncoding(d_model, max_len=rows * cols)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=False, dropout=0.1)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.output_layer = nn.Linear(d_model, 1)
+
+    def forward(self, x):
+        x = F.relu(self.bn(self.conv(x)))
+        x = x.flatten(2).permute(2, 0, 1)
+        x = self.pos_encoder(x)
+        x = self.transformer_encoder(x)
+        x = x.mean(dim=0)
+        return self.output_layer(x)
 
 class DQNAgent:
-    def __init__(self, state_size, learning_rate=0.001, gamma=0.95, 
-                 epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.95):
-        self.state_size = state_size
-        self.gamma = gamma  # 折扣因子，對未來獎勵的重視程度
-        self.epsilon = epsilon_start
-        self.epsilon_end = epsilon_end
-        self.epsilon_decay = epsilon_decay
-        self.learning_rate = learning_rate
-
+    def __init__(self, state_shape=(2, 20, 10), learning_rate=1e-4, gamma=0.99,
+                 epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.9999):
+        self.state_shape = state_shape
+        self.gamma = gamma
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Using device: {self.device}")
+        print(f"Initializing agent on device: {self.device}")
 
-        # 我們需要兩個網路：一個用於決策(policy_net)，一個用於計算目標Q值(target_net)
-        # 這可以讓訓練更穩定
-        self.policy_net = QNetwork(state_size).to(self.device)
-        self.target_net = QNetwork(state_size).to(self.device)
-        #if torch.__version__.startswith("2."):
-        #    print("PyTorch 2.0+ detected, compiling the model...")
-        #    self.policy_net = torch.compile(self.policy_net)
-        #    self.target_net = torch.compile(self.target_net)        
-        self._update_target_network()
-        self.target_net.eval() # Target net 不進行訓練
-
-
-
-        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.learning_rate)
-        self.criterion = nn.MSELoss() # 使用均方誤差作為損失函數
+        self.policy_net = TetrisTransformer(channels=state_shape[0]).to(self.device)
+        self.target_net = TetrisTransformer(channels=state_shape[0]).to(self.device)
         
-        # 經驗回放池
-        self.memory = deque(maxlen=25000)
+        self.reconfigure_for_phase({
+            'learning_rate': learning_rate,
+            'epsilon_start': epsilon_start,
+            'epsilon_end': epsilon_end,
+            'epsilon_decay': epsilon_decay
+        })
+
+        self._update_target_network()
+        self.target_net.eval()
+
+        self.criterion = nn.SmoothL1Loss()
+        self.memory = deque(maxlen=50000)
 
     def _update_target_network(self):
-        """複製 policy_net 的權重到 target_net"""
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
-    def act(self, possible_states):
-        """
-        根據 ε-greedy 策略選擇最佳動作
-        possible_states: 一個字典 {action: state_features, ...}
-        """
-        if not possible_states:
-            return None
+    def reconfigure_for_phase(self, phase_config):
+        """(新增) 用於在每個新階段開始時重設超參數"""
+        print("\n--- Reconfiguring Agent for New Phase ---")
+        self.learning_rate = phase_config['learning_rate']
+        self.epsilon = phase_config['epsilon_start']
+        self.epsilon_start = phase_config['epsilon_start']
+        self.epsilon_end = phase_config['epsilon_end']
+        self.epsilon_decay = phase_config['epsilon_decay']
+        
+        self.optimizer = torch.optim.AdamW(self.policy_net.parameters(), lr=self.learning_rate)
+        print(f"New Learning Rate: {self.learning_rate}")
+        print(f"New Epsilon Range: {self.epsilon_start:.4f} -> {self.epsilon_end:.4f} (Decay: {self.epsilon_decay})")
 
-        # Epsilon-Greedy：以 ε 的機率隨機探索，(1-ε) 的機率選擇最佳動作
-        if random.random() < self.epsilon:
-            return random.choice(list(possible_states.keys()))
-        else:
-            # 利用網路預測，選擇 Q-value 最高的動作
-            best_action = None
-            max_q_value = -float('inf')
+    def act(self, possible_states):
+        if not possible_states: return None
+        if random.random() < self.epsilon: return random.choice(list(possible_states.keys()))
+
+        with torch.no_grad():
+            actions, states = zip(*possible_states.items())
+            states_tensor = torch.from_numpy(np.stack(states)).float().to(self.device)
+            q_values = self.policy_net(states_tensor)
+            return actions[torch.argmax(q_values).item()]
             
-            with torch.no_grad():
-                for action, state in possible_states.items():
-                    state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-                    q_value = self.policy_net(state_tensor).item()
-                    if q_value > max_q_value:
-                        max_q_value = q_value
-                        best_action = action
-            return best_action
-            
-    def remember(self, state, action, reward, next_state, done):
-        """將經驗存入回放池"""
-        self.memory.append((state, action, reward, next_state, done))
+    def remember(self, state, action, reward, next_possible_states, done):
+        self.memory.append((state, action, reward, next_possible_states, done))
 
     def replay(self, batch_size):
-        """從回放池中取樣學習"""
-        if len(self.memory) < batch_size:
-            return 0 # 記憶體不足，暫不學習
+        if len(self.memory) < batch_size: return 0
 
         minibatch = random.sample(self.memory, batch_size)
         
-        # 將數據轉換成 Torch Tensors
-        states = torch.FloatTensor(np.array([m[0] for m in minibatch])).to(self.device)
-        actions = [m[1] for m in minibatch] # action 比較複雜，稍後處理
-        rewards = torch.FloatTensor([m[2] for m in minibatch]).to(self.device)
-        next_states = {action: torch.FloatTensor(np.array([m[3][action] for m in minibatch if action in m[3]])).to(self.device)
-                       for action in set(a for m in minibatch for a in m[3])}
-        dones = torch.BoolTensor([m[4] for m in minibatch]).to(self.device)
-        
-        # --- 計算 Loss ---
-        # 1. 計算當前 state 的 Q-value (Q(s,a))
-        # 這裡需要找到對應 action 的 state 特徵
-        q_eval_list = []
-        for i, m in enumerate(minibatch):
-            state_tensor = torch.FloatTensor(m[0]).unsqueeze(0).to(self.device)
-            q_eval_list.append(self.policy_net(state_tensor))
-        q_eval = torch.cat(q_eval_list)
+        states = torch.from_numpy(np.stack([m[0] for m in minibatch])).float().to(self.device)
+        current_q_values = self.policy_net(states)
 
-        # 2. 計算目標 Q-value (y)
-        # y = reward + gamma * max_a'( Q_target(s', a') )
         next_q_values = torch.zeros(batch_size, device=self.device)
-        if next_states: # 如果有下一步狀態
-            with torch.no_grad():
-                all_next_states_list = []
-                # 處理 next_states 批次化
-                for i, m in enumerate(minibatch):
-                    if not m[4]: # if not done
-                        possible_next_states = m[3]
-                        if possible_next_states:
-                            state_tensors = torch.FloatTensor(np.array(list(possible_next_states.values()))).to(self.device)
-                            next_q_values[i] = self.target_net(state_tensors).max(0)[0]
+        with torch.no_grad():
+            for i, m in enumerate(minibatch):
+                if not m[4] and m[3]:
+                    next_states_tensor = torch.from_numpy(np.stack(list(m[3].values()))).float().to(self.device)
+                    next_q_values[i] = self.target_net(next_states_tensor).max()
         
-        q_target = rewards + self.gamma * next_q_values * (~dones)
-        q_target = q_target.unsqueeze(1)
-
-        # 3. 計算損失
-        loss = self.criterion(q_eval, q_target)
-
-        # 4. 反向傳播與優化
+        rewards = torch.FloatTensor([m[2] for m in minibatch]).to(self.device)
+        dones = torch.BoolTensor([m[4] for m in minibatch]).to(self.device)
+        target_q_values = rewards + self.gamma * next_q_values * (~dones)
+        
+        loss = self.criterion(current_q_values, target_q_values.unsqueeze(1))
         self.optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1.0)
         self.optimizer.step()
         
-        # 衰減 Epsilon
-        if self.epsilon > self.epsilon_end:
-            self.epsilon *= self.epsilon_decay
-            
+        if self.epsilon > self.epsilon_end: self.epsilon *= self.epsilon_decay
         return loss.item()
