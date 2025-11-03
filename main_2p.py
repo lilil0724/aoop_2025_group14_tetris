@@ -6,7 +6,7 @@ import Handler
 import random
 import ai_player
 import copy
-
+#test commit
 DEBUG = False
 
 init_start = (5, 0) # 放置新方塊的位置 (邏輯座標)
