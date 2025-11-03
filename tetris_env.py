@@ -55,13 +55,13 @@ class TetrisEnv:
                 sim_piece = copy.deepcopy(self.piece)
                 sim_piece.rotation = rotation
                 sim_piece.x = x
-
-                # 檢查初始位置是否有效
-                if not Handler.isValidPosition(self.shot, sim_piece):
-                    continue
-
                 # 模擬瞬降
                 sim_shot = copy.deepcopy(self.shot)
+                # 檢查初始位置是否有效
+                if not Handler.isValidPosition(sim_shot, sim_piece): # <--- 改成呼叫我們剛剛在 Handler 中新增的函式
+                    continue
+
+                
                 Handler.instantDrop(sim_shot, sim_piece)
                 
                 # 獲取這個模擬盤面的特徵
@@ -73,43 +73,64 @@ class TetrisEnv:
     def step(self, action):
         """
         執行一個動作並回傳 (next_state, reward, done)
-        action: 一個元組 (x, rotation)
+        (修改後的版本，包含更豐富的獎勵)
         """
-        x, rotation = action
-        self.piece.x = x
-        self.piece.rotation = rotation
+        # 取得執行動作前的盤面狀態
+        old_properties = self._get_state_properties(self.shot.status)
+        old_height = old_properties[0]
+        old_holes = old_properties[1]
+        old_bumpiness = old_properties[2]
 
-        # 檢查移動是否合法 (理論上應該都是合法的)
-        if not Handler.isValidPosition(self.shot, self.piece):
-            return self._get_state_properties(self.shot.status), -100, True # 給予巨大懲罰
-
-        # 執行瞬降
+        # ... (執行瞬降等操作) ...
         Handler.instantDrop(self.shot, self.piece)
-        
-        # 結算與計算獎勵
         lines_cleared, _ = Handler.eliminateFilledRows(self.shot, self.piece)
-        
-        # 設計獎勵函數
-        reward = 0
-        if lines_cleared == 1:
-            reward = 1
-        elif lines_cleared == 2:
-            reward = 4
-        elif lines_cleared == 3:
-            reward = 9
-        elif lines_cleared >= 4:
-            reward = 20 # Tetris!
-        else:
-            reward = -0.1 # 每放一個方塊給予微小懲罰，鼓勵消行
 
+        # 取得執行動作後的盤面狀態
+        new_properties = self._get_state_properties(self.shot.status)
+        new_height = new_properties[0]
+        new_holes = new_properties[1]
+        new_bumpiness = new_properties[2]
+
+
+        # --- 設計新的獎勵函數 (Reward Shaping) ---
+        reward = 0
+        
+        # 主要獎勵：消行
+        if lines_cleared == 1:
+            reward += 10
+        elif lines_cleared == 2:
+            reward += 30
+        elif lines_cleared == 3:
+            reward += 60
+        elif lines_cleared >= 4:
+            reward += 120  # 大力獎勵 Tetris
+
+        height_increase = new_height - old_height
+        # 只有在沒有消行的情況下，高度增加才應該被視為一個嚴重的負面行為
+        if lines_cleared == 0 and height_increase > 0:
+            reward -= height_increase * 0.5  # 施加一個與高度增量相關的懲罰
+        # 輔助獎勵：鼓勵好的盤面狀態
+        
+        # 1. 懲罰製造新的空洞
+        if new_holes > old_holes:
+            reward -= (new_holes - old_holes) * 2
+        
+        # 2. 獎勵填補空洞
+        if new_holes < old_holes:
+            reward += (old_holes - new_holes) * 4
+            
+        # 3. 懲罰增加的粗糙度
+        if new_bumpiness > old_bumpiness:
+            reward -= (new_bumpiness - old_bumpiness) * 0.1
+
+        
         # 產生新方塊
         self.piece = self.next_piece
         self.next_piece = pieces.Piece(*config.init_start, random.choice(list(config.shapes.keys())))
 
-        # 檢查是否遊戲結束
         done = Handler.isDefeat(self.shot, self.piece)
         if done:
-            reward = -50 # 遊戲結束給予巨大懲罰
+            reward = -200 # 遊戲結束是最大的失敗
 
         return self._get_state_properties(self.shot.status), reward, done
 

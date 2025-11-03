@@ -19,8 +19,8 @@ class QNetwork(nn.Module):
         return self.fc3(x)
 
 class DQNAgent:
-    def __init__(self, state_size, learning_rate=0.0005, gamma=0.95, 
-                 epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.9995):
+    def __init__(self, state_size, learning_rate=0.001, gamma=0.95, 
+                 epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.95):
         self.state_size = state_size
         self.gamma = gamma  # 折扣因子，對未來獎勵的重視程度
         self.epsilon = epsilon_start
@@ -35,8 +35,14 @@ class DQNAgent:
         # 這可以讓訓練更穩定
         self.policy_net = QNetwork(state_size).to(self.device)
         self.target_net = QNetwork(state_size).to(self.device)
+        #if torch.__version__.startswith("2."):
+        #    print("PyTorch 2.0+ detected, compiling the model...")
+        #    self.policy_net = torch.compile(self.policy_net)
+        #    self.target_net = torch.compile(self.target_net)        
         self._update_target_network()
         self.target_net.eval() # Target net 不進行訓練
+
+
 
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.learning_rate)
         self.criterion = nn.MSELoss() # 使用均方誤差作為損失函數

@@ -5,6 +5,29 @@ def getCellsAbsolutePosition(piece):
     '''取得方塊當前所有方格的座標'''
     return [(y + piece.y, x + piece.x) for y, x in piece.getCells()]
 
+# 請將這個新函式加入你的 Handler.py 檔案
+
+def isValidPosition(shot, piece):
+    """
+    檢查方塊在目前的位置 (座標與旋轉) 是否合法。
+    一個位置合法的條件是：
+    1. 方塊的所有格點都在遊戲邊界內。
+    2. 方塊的所有格點都沒有與已固定的方塊重疊。
+    """
+    # 取得方塊當前所有格點的絕對座標
+    cells = getCellsAbsolutePosition(piece)
+
+    for y, x in cells:
+        # 條件1: 檢查是否超出邊界 (允許在天花板之上 y<0)
+        if not (0 <= x < config.columns and y < config.rows):
+            return False
+        
+        # 條件2: 檢查是否與已固定方塊重疊 (只在可見區域內檢查)
+        if y >= 0 and shot.status[y][x] == 2:
+            return False
+            
+    return True
+
 
 def fixPiece(shot, piece):
     '''固定已落地的方塊，並且在main中自動切到下一個方塊'''

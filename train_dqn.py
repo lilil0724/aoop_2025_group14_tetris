@@ -5,7 +5,7 @@ import numpy as np
 
 # --- 訓練參數 ---
 EPISODES = 2000
-BATCH_SIZE = 512
+BATCH_SIZE = 64
 TARGET_UPDATE_FREQUENCY = 10 # 每隔多少個 episode 更新一次 target network
 
 def main():

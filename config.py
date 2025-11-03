@@ -34,6 +34,9 @@ width = P2_INFO_X + INFO_PANEL_WIDTH
 height = rows * grid
 # --- End 1v1 Config ---
 
+rows = 20
+columns = 10
+init_start = (5, 0) # 放置新方塊的位置 (x, y 邏輯座標) # <--- 新增這一行
 
 # others
 fps = 60
