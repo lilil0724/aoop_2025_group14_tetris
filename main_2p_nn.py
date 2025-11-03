@@ -105,7 +105,7 @@ def main():
 
     # AI 載入
     if USE_TRAINED_AI_NN:
-        ai_nn = AIPlayerNN.from_file('tetris_valuenet.pt')
+        ai_nn = AIPlayerNN.load('tetris_valuenet.pt')
     else:
         ai_nn = AIPlayerNN()
 

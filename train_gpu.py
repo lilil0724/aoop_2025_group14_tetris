@@ -13,29 +13,30 @@ import config
 import Handler
 import pieces
 import shots
-from ai_player_nn import ValueNet, _extract_features_from_board_np
+# (注意) 確保你使用的是 JIT 加速的 'np' 版本
+from ai_player_nn import ValueNet, _extract_features_from_board_np 
 
 # -----------------------
-# 參數設定
+# 參數設定 (V4 方案)
 # -----------------------
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 GAMMA = 0.985
-LR = 5e-4
-BUFFER_SIZE = 50000
-BATCH_SIZE = 512
-TRAIN_STEPS = 250000
-TARGET_UPDATE = 3000
-REWARD_SCALE = 5.0
+LR = 1e-4                # (V4 修正) 1e-4 更穩定
+BUFFER_SIZE = 50000      # (保留) 您的 50k
+BATCH_SIZE = 512         # (保留) 您的 512
+TRAIN_STEPS = 150000     # (V4 修正) 增加總步數
+TARGET_UPDATE = 5000     # (V4 修正) 5k 步更穩定
+REWARD_SCALE = 40.0      # (*** 關鍵修正 ***) 獎勵基準是 40 (1 line)
 
 EPS_START = 1.0
 EPS_END = 0.02
-EPS_DECAY = 80000
-MAX_MOVES_PER_GAME = 1200
+EPS_DECAY = 120000       # (*** 關鍵修正 ***) 8 萬步太短，給 40 萬步探索
+MAX_MOVES_PER_GAME = 1500 # (V4 修正) 讓 AI 能堆更高
 
-SAVE_PATH = 'tetris_valuenet.pt'
-CHECKPOINT_PATH = 'tetris_checkpoints/'
-CHECKPOINT_INTERVAL = 50000
-GRAD_ACCUM_STEPS = 4
+SAVE_PATH = 'tetris_valuenet_v4.pt' # (V4 修正) 存成新檔名
+CHECKPOINT_PATH = 'tetris_checkpoints_v4/' # (V4 修正) 存到新資料夾
+CHECKPOINT_INTERVAL = 30000
+GRAD_ACCUM_STEPS = 4      # (保留) 您的梯度累加
 USE_COMPILE = False
 LOG_INTERVAL = 1000
 EPISODE_LOG_WINDOW = 50
@@ -62,7 +63,8 @@ def _env_reset():
 def _enumerate_legal_moves(shot, piece):
     moves = []
     for rot in range(len(config.shapes[piece.shape])):
-        tmpl = pieces.Piece(piece.x, piece.y, piece.shape)
+        # (修正) 確保 tmpl 是從 piece 複製
+        tmpl = pieces.Piece(piece.x, piece.y, piece.shape) 
         tmpl.rotation = rot
         for x in range(-2, config.columns + 1):
             tmpl.x = x
@@ -71,34 +73,58 @@ def _enumerate_legal_moves(shot, piece):
     return moves
 
 
-SCORES = {0: 0.0, 1: 2.5, 2: 6.0, 3: 10.0, 4: 18.0}
+# (*** 關鍵修正 ***)
+# 刪除舊的 SCORES = {...} 字典
 
 def _simulate_step(shot, piece, action):
+    """
+    V4 修正版：
+    1. 使用 config.py 的 40/100/300/1200 分作為基礎獎勵
+    2. 使用我們之前調校好的「溫和懲罰」
+    """
     prev_score = shot.score
-    sim_shot = copy.deepcopy(shot)
+    
+    # (*** 速度優化 ***) 
+    # 確保使用 .copy() 而不是 deepcopy
+    if hasattr(shot, 'copy'):
+        sim_shot = shot.copy()
+    else:
+        sim_shot = copy.deepcopy(shot) # (備用)
+        
     sim_piece = copy.deepcopy(piece)
 
     sim_piece.x, sim_piece.rotation = action
     Handler.instantDrop(sim_shot, sim_piece)
-    clears, all_clear = Handler.eliminateFilledRows(sim_shot, sim_piece)
+    
+    # (*** 關鍵 ***) 
+    # 這裡會使用 config.py 的 {1:40, 4:1200} 來更新 sim_shot.score
+    clears, all_clear = Handler.eliminateFilledRows(sim_shot, sim_piece) 
 
     next_shape = random.choice(list(config.shapes.keys()))
     next_piece = pieces.Piece(5, 0, next_shape)
     done = Handler.isDefeat(sim_shot, next_piece)
 
-    reward = SCORES.get(clears, 0.0) + (10.0 if all_clear else 0.0)
+    # 1. 基礎獎勵 (來自 config.py: 40, 100, 300, 1200)
+    reward = sim_shot.score - prev_score 
+
+    # 2. 溫和的懲罰 (v3 版的參數)
     if not done:
-        feats = _extract_features_from_board_np(sim_shot.status)
+        feats = _extract_features_from_board_np(sim_shot.status) 
         flat_grid_size = config.rows * config.columns
         heights_size = config.columns
         deltas_size = config.columns - 1
+        
         holes = feats[flat_grid_size]
-        agg_h = feats[flat_grid_size + heights_size]
-        bumpiness = feats[flat_grid_size + heights_size + deltas_size + 2]
-        reward -= holes * 0.4
-        reward -= agg_h * 0.015
-        reward -= bumpiness * 0.04
-    reward += 0.02
+        bumpiness = feats[flat_grid_size + heights_size + deltas_size + 2] 
+
+        reward -= holes * 0.5       # (溫和懲罰)
+        reward -= bumpiness * 0.1   # (溫和懲罰)
+
+    # 3. All Clear 獎勵
+    if all_clear:
+        reward += 50.0 # (PC 獎勵)
+
+    # (移除舊的 reward += 0.02)
     return sim_shot, reward, done, next_piece
 
 
@@ -129,8 +155,8 @@ def train():
     accum_counter = 0
     episode_scores = deque(maxlen=EPISODE_LOG_WINDOW)
 
-    print(f"--- 開始訓練 (共 {TRAIN_STEPS} 步) ---")
-    print(f"Device={DEVICE}, LR={LR}, TF32={torch.backends.cuda.matmul.allow_tf32}, Compile=True")
+    print(f"--- V4 方案開始訓練 (共 {TRAIN_STEPS} 步) ---")
+    print(f"Device={DEVICE}, LR={LR}, RewardScale={REWARD_SCALE}, EpsDecay={EPS_DECAY}")
 
     shot, piece, next_piece, current_episode_score = _env_reset()
     original_episode_score = 0
@@ -154,6 +180,9 @@ def train():
                     features_list.append(_extract_features_from_board_np(sim_shot.status))
                     rewards_list.append(r)
 
+                if not features_list: # (安全檢查)
+                    break 
+
                 with torch.no_grad(), autocast():
                     state_batch = torch.tensor(features_list, dtype=torch.float32, device=DEVICE)
                     values_next = policy(state_batch).squeeze()
@@ -165,7 +194,9 @@ def train():
                 action, next_shot, reward, done, new_next_piece = simulation_results[best_idx]
 
             current_episode_score += reward
-            original_episode_score += (next_shot.score - shot.score)
+            # (*** 關鍵 ***) 
+            # original_episode_score 現在會記錄 40, 100 等分數
+            original_episode_score += (next_shot.score - shot.score) 
 
             x_feats = torch.tensor(_extract_features_from_board_np(shot.status), dtype=torch.float32)
             next_x_feats = torch.tensor(_extract_features_from_board_np(next_shot.status), dtype=torch.float32)
@@ -203,15 +234,21 @@ def train():
             if step % TARGET_UPDATE == 0:
                 target.load_state_dict(policy.state_dict())
                 print(f"--- [Step {step:7d}] Target network updated. ---")
-            if step % LOG_INTERVAL == 0 and len(episode_scores) >= 10:
-                max_score = max(episode_scores)
-                print(f"[Monitor] Recent max score: {max_score:.2f}")
+            
+            # (*** 修正日誌 ***)
+            # 確保 'original_episode_score' 被正確記錄
             if step % LOG_INTERVAL == 0:
                 avg_loss = statistics.mean(running_losses) if running_losses else 0
                 avg_score = statistics.mean(episode_scores) if episode_scores else 0
+                
                 print(f"[Step {step:7d}/{TRAIN_STEPS}] "
                       f"AvgLoss={avg_loss:8.6f} | AvgScore={avg_score:8.2f} | "
                       f"Eps={eps:.4f} | Buffer={len(replay)}")
+                
+                if len(episode_scores) >= 10:
+                    max_score = max(episode_scores)
+                    print(f"[Monitor] Recent max score: {max_score:.2f}")
+
                 if step > 0 and step % CHECKPOINT_INTERVAL == 0:
                     ckpt_name = f"tetris_valuenet_step_{step}.pt"
                     ckpt_save_path = os.path.join(CHECKPOINT_PATH, ckpt_name)
@@ -222,7 +259,9 @@ def train():
                 break
 
         episode += 1
-        episode_scores.append(original_episode_score)
+        # (*** 關鍵 ***)
+        # 我們記錄的是 original_episode_score，這才是真正的遊戲分數
+        episode_scores.append(original_episode_score) 
         shot, piece, next_piece, current_episode_score = _env_reset()
         original_episode_score = 0
 
