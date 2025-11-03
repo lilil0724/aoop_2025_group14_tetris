@@ -14,8 +14,8 @@ import shots
 from ai_player_v2 import AIPlayer
 
 # --- 遺傳演算法參數 ---
-POPULATION_SIZE = 50
-GENERATIONS = 30
+POPULATION_SIZE = 10
+GENERATIONS = 10
 MUTATION_RATE = 0.1
 MUTATION_STRENGTH = 0.2
 GAMES_PER_AI = 5  # <-- 可以適當增加，讓評估更準確
