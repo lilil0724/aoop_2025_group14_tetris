@@ -7,11 +7,11 @@ from pieces import Piece
 
 # 定義簡單的 Reward
 REWARD_CLEAR_LINES = [0, 100, 300, 600, 1000] # 0, 1, 2, 3, 4 lines (大幅增加!)
-REWARD_GAME_OVER = -200      # 稍微降低死亡懲罰，鼓勵冒險
-REWARD_SURVIVE = 1           # 活著只給一點點糖吃
-REWARD_HOLE_PENALTY = -5     # 空洞懲罰加重，讓它學會鋪平
-REWARD_HEIGHT_PENALTY = -2   # 高度懲罰
-REWARD_BUMPINESS_PENALTY = -1 # (新增) 表面不平整的懲罰
+REWARD_GAME_OVER = -500      # 稍微降低死亡懲罰，鼓勵冒險
+REWARD_SURVIVE = 2           # 活著只給一點點糖吃
+REWARD_HOLE_PENALTY = -2     # 空洞懲罰加重，讓它學會鋪平
+REWARD_HEIGHT_PENALTY = -0.5   # 高度懲罰
+REWARD_BUMPINESS_PENALTY = -0.5 # (新增) 表面不平整的懲罰
 
 class TetrisEnv:
     def __init__(self):

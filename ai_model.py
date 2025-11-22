@@ -1,62 +1,57 @@
 import torch
 import torch.nn as nn
-import math
+import numpy as np
 
-class TetrisTransformer(nn.Module):
+class TetrisActorCritic(nn.Module):
     def __init__(self, rows=20, cols=10, d_model=64, nhead=4, num_layers=2):
-        super(TetrisTransformer, self).__init__()
+        super(TetrisActorCritic, self).__init__()
         
-        self.rows = rows
-        self.cols = cols
-        
-        # 1. CNN 特徵提取器
-        # 輸入: (Batch, 2, 20, 10) -> 通道0: 固定方塊, 通道1: 當前移動方塊
+        # --- 共用的感知層 (CNN + Transformer) ---
+        # 這部分跟原本一樣，負責「看懂」盤面
         self.embedding = nn.Sequential(
             nn.Conv2d(2, 16, kernel_size=3, padding=1), 
             nn.ReLU(),
-            nn.MaxPool2d(2), # -> (16, 10, 5)
-            nn.Conv2d(16, d_model, kernel_size=3, padding=1), # -> (64, 10, 5)
+            nn.MaxPool2d(2), 
+            nn.Conv2d(16, d_model, kernel_size=3, padding=1),
             nn.ReLU()
         )
         
-        # 計算展平後的序列長度 (10 * 5 = 50)
         self.seq_len = (rows // 2) * (cols // 2) 
-        
-        # 2. 位置編碼 (Positional Encoding)
         self.pos_encoder = nn.Parameter(torch.randn(1, self.seq_len, d_model))
         
-        # 3. Transformer Encoder
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         
-        # 4. 價值輸出頭 (Value Head) - 評估這個盤面好不好 (DQN)
-        self.value_head = nn.Sequential(
+        # --- 雙頭龍設計 ---
+        
+        # 1. 評論家 (Critic): 評估這個盤面「有多好」 (輸出 1 個分數)
+        self.critic_head = nn.Sequential(
             nn.Linear(d_model * self.seq_len, 256),
             nn.ReLU(),
-            nn.Linear(256, 1) # 輸出單一分數 (Q-value)
+            nn.Linear(256, 1)
+        )
+        
+        # 2. 演員 (Actor): 決定「該選哪一個動作」
+        # 注意: 因為 Tetris 的動作數量是不固定的 (取決於能放哪)，
+        # 我們這裡稍微變通：我們不輸出固定的動作機率，
+        # 而是輸出一個 "Preference Score"，搭配 Softmax 來選動作。
+        self.actor_head = nn.Sequential(
+            nn.Linear(d_model * self.seq_len, 256),
+            nn.ReLU(),
+            nn.Linear(256, 1) # 給當前輸入的 "這個狀態" 打一個 "喜好分"
         )
 
     def forward(self, x):
-        # x shape: (Batch, 2, 20, 10)
+        # x: (Batch, 2, 20, 10)
         
-        # CNN 處理 -> (Batch, 64, 10, 5)
         features = self.embedding(x)
-        
-        # 調整形狀給 Transformer: (Batch, 64, 50) -> (Batch, 50, 64)
-        # Flatten height and width into sequence
         b, c, h, w = features.size()
         features = features.view(b, c, h * w).permute(0, 2, 1)
-        
-        # 加入位置編碼
         features = features + self.pos_encoder
-        
-        # Transformer 思考
         memory = self.transformer_encoder(features)
-        
-        # 展平: (Batch, 50 * 64)
         flat_memory = memory.reshape(memory.size(0), -1)
         
-        # 輸出分數
-        value = self.value_head(flat_memory)
+        value = self.critic_head(flat_memory) # 這裡有多好?
+        policy_logits = self.actor_head(flat_memory) # 我有多想選這裡?
         
-        return value
+        return policy_logits, value
