@@ -6,11 +6,12 @@ import config
 from pieces import Piece
 
 # 定義簡單的 Reward
-REWARD_CLEAR_LINES = [0, 10, 30, 60, 100] # 0, 1, 2, 3, 4 lines
-REWARD_GAME_OVER = -50
-REWARD_SURVIVE = 0.1
-REWARD_HOLE_PENALTY = -2
-REWARD_HEIGHT_PENALTY = -0.5
+REWARD_CLEAR_LINES = [0, 100, 300, 600, 1000] # 0, 1, 2, 3, 4 lines (大幅增加!)
+REWARD_GAME_OVER = -200      # 稍微降低死亡懲罰，鼓勵冒險
+REWARD_SURVIVE = 1           # 活著只給一點點糖吃
+REWARD_HOLE_PENALTY = -5     # 空洞懲罰加重，讓它學會鋪平
+REWARD_HEIGHT_PENALTY = -2   # 高度懲罰
+REWARD_BUMPINESS_PENALTY = -1 # (新增) 表面不平整的懲罰
 
 class TetrisEnv:
     def __init__(self):
@@ -58,15 +59,25 @@ class TetrisEnv:
         # 3. 檢查消行
         cleared_lines = self._clear_lines(self.board)
         
-        # 4. 計算獎勵
         reward = REWARD_SURVIVE
         reward += REWARD_CLEAR_LINES[cleared_lines]
         
-        # 額外獎勵/懲罰: 高度和空洞
+        # 額外獎勵: 連擊 (Combo) - 鼓勵連續消行
+        # 假設 self.combo 在 reset 時初始化為 0，每次消行 +1，沒消行歸零
+        if cleared_lines > 0:
+            self.combo += 1
+            reward += (self.combo * 50) # 連擊獎勵
+        else:
+            self.combo = 0
+
+        # 狀態懲罰計算
         holes = self._count_holes(self.board)
         height = self._get_aggregate_height(self.board)
+        bumpiness = self._get_bumpiness(self.board) # 需實作此 helper function
+        
         reward += (holes * REWARD_HOLE_PENALTY)
         reward += (height * REWARD_HEIGHT_PENALTY)
+        reward += (bumpiness * REWARD_BUMPINESS_PENALTY)
 
         # 5. 檢查是否 Game Over (如果生出的新方塊一出來就撞到)
         self.current_piece = self._get_random_piece()
@@ -184,3 +195,18 @@ class TetrisEnv:
                     total_height += (config.rows - row)
                     break
         return total_height
+
+    def _get_bumpiness(self, board):
+        total_bumpiness = 0
+        max_heights = []
+        for col in range(config.columns):
+            h = 0
+            for row in range(config.rows):
+                if board[row][col] == 2:
+                    h = config.rows - row
+                    break
+            max_heights.append(h)
+        
+        for i in range(len(max_heights) - 1):
+            total_bumpiness += abs(max_heights[i] - max_heights[i+1])
+        return total_bumpiness
