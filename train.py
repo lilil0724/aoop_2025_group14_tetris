@@ -17,7 +17,7 @@ BATCH_SIZE = 128         # 批次大小
 GAMMA = 0.99             # 折扣因子 (遠見)
 EPS_START = 1.0          # 初始探索率 (100% 隨機)
 EPS_END = 0.01           # 最終探索率 (1% 隨機)
-EPS_DECAY = 5000         # 探索率衰減速度 (越慢越好)
+EPS_DECAY = 3000         # 探索率衰減速度 (越慢越好)
 LR = 1e-4                # 學習率
 MEMORY_SIZE = 50000      # 記憶庫加大
 TARGET_UPDATE = 10       # 每 10 場更新一次 Target Net
@@ -95,8 +95,8 @@ def train():
             # --- Epsilon-Greedy 策略 ---
             # 使用指數衰減，讓 AI 在前 3000 場有較多探索機會
             eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-                math.exp(-1. * steps_done / EPS_DECAY)
-            steps_done += 1
+                math.exp(-1. * i_episode / EPS_DECAY)
+            #steps_done += 1
             
             use_ai = True
             if random.random() < eps_threshold:
