@@ -1,127 +1,132 @@
-import torch
-import torch.optim as optim
-import torch.nn as nn
-import torch.nn.functional as F
+import cma
 import numpy as np
-from tqdm import tqdm
+import pickle
+import multiprocessing as mp
 import os
-
+import time
 from tetris_env import TetrisEnv
-from ai_model import TetrisActorCritic # 記得改 import
-import config
 
-# --- A2C 參數 ---
-LR = 1e-4
-GAMMA = 0.99
-NUM_EPISODES = 10000
-ENTROPY_BETA = 0.01 # 鼓勵探索 (避免演員太早只會出一招)
+# --- 進化參數 ---
+POPULATION_SIZE = 16   # 每一代有 16 個 AI 參賽
+GENERATIONS = 100      # 總共進化 100 代
+GAMES_PER_AGENT = 5    # 每個 AI 玩 5 場取平均 (減少運氣成分)
+MAX_STEPS = 5000       # 每場最多玩幾步 (避免無限玩)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# 初始權重猜測 (根據文獻經驗):
+# [總高度, 消行數, 空洞數, 粗糙度]
+# 注意：CMA-ES 是求 "最小值"，所以我們要 "最大化分數" = "最小化負分"
+# 我們希望：高度低(-), 消行多(+), 空洞少(-), 粗糙少(-)
+# 初始種子：[-0.5, 0.76, -0.36, -0.18] (這是 Pierre Dellacherie 算法的變體)
+# 修改 INITIAL_WEIGHTS
+# Dellacherie 經驗值參考：
+# Height: -1
+# Row Trans: -1
+# Col Trans: -1
+# Holes: -4  (空洞懲罰最重)
+# Wells: -1
+INITIAL_WEIGHTS = [-1.0, -1.0, -1.0, -4.0, -1.0, 0.5, -1.0, -1.0]
+INITIAL_SIGMA = 0.5    # 突變幅度
 
-def train_a2c():
+# --- 評估函數 (Worker) ---
+def evaluate_agent(weights):
     env = TetrisEnv()
-    model = TetrisActorCritic(config.rows, config.columns).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=LR)
-    
-    print(f"開始 A2C 訓練... Device: {device}")
-    progress_bar = tqdm(range(NUM_EPISODES))
-    
-    for i_episode in progress_bar:
-        env.reset()
+    total_lines = 0
+    tetris_count = 0
+    for _ in range(GAMES_PER_AGENT):
+        state = env.reset() # state 已經是 [agg_height, row_trans, col_trans, holes, wells]
+        done = False
+        steps = 0
         
-        # 儲存這一場的歷程
-        log_probs = []    # 演員的信心指數
-        values = []       # 評論家的評分
-        rewards = []      # 實際拿到的獎勵
-        
-        total_reward = 0
-        
-        while True:
-            # 1. 獲取所有可能的下一步
-            next_states_dict = env.get_possible_next_states()
-            if not next_states_dict: break
+        while not done and steps < MAX_STEPS:
+            steps += 1
+            possible_next = env.get_possible_next_states()
             
-            moves = list(next_states_dict.keys())
-            states_np = list(next_states_dict.values())
+            if not possible_next: break
             
-            # 轉 Tensor
-            state_batch = torch.tensor(np.array(states_np), dtype=torch.float32).to(device)
+            best_score = -float('inf')
+            best_action = None
             
-            # 2. 模型思考 (Forward Pass)
-            # 這次我們得到兩個輸出: policy_logits (喜好度) 和 value (預期分數)
-            logits, value_est = model(state_batch)
+            for action, features in possible_next.items():
+                # features 已經是 5 維向量
+                # weights 也是 5 維向量
+                score = np.dot(weights, features)
+                
+                if score > best_score:
+                    best_score = score
+                    best_action = action
             
-            # --- 關鍵差異: Softmax 選擇動作 ---
-            # 演員給每個可能的盤面打「喜好分」，我們用 Softmax 轉成機率
-            probs = F.softmax(logits.view(-1), dim=0)
-            
-            # 根據機率抽樣 (不再是 Epsilon-Greedy 硬幣了！)
-            dist = torch.distributions.Categorical(probs)
-            action_idx = dist.sample()
-            
-            # 紀錄這一刻的想法
-            log_prob = dist.log_prob(action_idx)
-            selected_value = value_est[action_idx] # 評論家對「選中這步」的評價
-            
-            log_probs.append(log_prob)
-            values.append(selected_value)
-            
-            # 3. 執行動作
-            action = moves[action_idx.item()]
-            reward, done = env.step(action)
-            rewards.append(reward)
-            total_reward += reward
-            
-            if done: break
-            
-        # --- 這一場結束後，開始總檢討 (Backpropagation) ---
+            if best_action:
+                _, done = env.step(best_action)
+                if env.last_cleared_lines == 4: # 需在 env 中記錄 last_cleared_lines
+                    tetris_count += 1
+            else:
+                break
         
-        # 1. 計算回報 (Returns) - 從最後一步往前推
-        returns = []
-        R = 0
-        for r in reversed(rewards):
-            R = r + GAMMA * R
-            returns.insert(0, R)
-        returns = torch.tensor(returns, dtype=torch.float32).to(device)
+        # 我們優化目標是 "消行數"
+        total_lines += env.line_count
         
-        # 整理資料
-        log_probs = torch.stack(log_probs)
-        values = torch.stack(values).view(-1)
-        
-        # 標準化 Returns (讓訓練更穩定)
-        returns = (returns - returns.mean()) / (returns.std() + 1e-5)
-        
-        # 2. 計算優勢 (Advantage)
-        # Advantage = 實際結果 - 評論家的預測
-        # 如果實際結果比評論家想得好，Advantage > 0，我們要鼓勵演員多這樣做
-        advantage = returns - values.detach()
-        
-        # 3. 計算 Loss
-        # Actor Loss: -log_prob * advantage (鼓勵 Advantage 高的動作)
-        actor_loss = -(log_probs * advantage).mean()
-        
-        # Critic Loss: 預測值要越接近實際值越好
-        critic_loss = F.mse_loss(values, returns)
-        
-        # Entropy Loss: 鼓勵機率分佈分散一點，不要太早太武斷 (探索機制)
-        # (這裡沒實作完整 Entropy 計算以簡化，但概念是這樣)
-        
-        total_loss = actor_loss + 0.5 * critic_loss
-        
-        # 4. 更新模型
-        optimizer.zero_grad()
-        total_loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        optimizer.step()
-        
-        # 顯示進度
-        progress_bar.set_description(f"Ep {i_episode} | R: {total_reward:.0f}")
-        
-        if i_episode % 1000 == 0:
-            torch.save(model.state_dict(), "tetris_a2c.pth")
+    avg_lines = total_lines / GAMES_PER_AGENT
+    score = avg_lines + (tetris_count * 10)
+    # CMA-ES 求最小化，所以回傳負的消行數
+    # 如果你是用 score 也可以，但 lines 比較直觀
+    return -score, avg_lines 
 
-    torch.save(model.state_dict(), "tetris_a2c.pth")
-    print("A2C 訓練完成！")
+
+# --- 主訓練迴圈 ---
+def train_evolution():
+    # 設定多進程
+    num_workers = mp.cpu_count() - 3
+    pool = mp.Pool(num_workers)
+    
+    # 初始化 CMA-ES
+    es = cma.CMAEvolutionStrategy(INITIAL_WEIGHTS, INITIAL_SIGMA, {'popsize': POPULATION_SIZE})
+    
+    print(f"🧬 開始進化訓練... (Workers: {num_workers})")
+    print(f"初始權重: {INITIAL_WEIGHTS}")
+    
+    best_ever_score = 0
+    
+    for gen in range(GENERATIONS):
+        start_time = time.time()
+        
+        # 1. 生小孩 (Ask)
+        solutions = es.ask()
+        
+        # 2. 考試 (Evaluate) - 平行處理
+        # solutions 是一群權重向量
+        results = pool.map(evaluate_agent, solutions)
+        
+        # 解包結果
+        fitness_values = [r[0] for r in results] # 負分 (給 CMA-ES 用)
+        lines_cleared = [r[1] for r in results]  # 實際消行數 (給人看)
+        
+        # 3. 更新家長 (Tell)
+        es.tell(solutions, fitness_values)
+        es.logger.add()
+        
+        # 4. 顯示進度
+        current_best_score = -min(fitness_values)
+        avg_gen_score = -np.mean(fitness_values)
+        max_lines = max(lines_cleared)
+        
+        if current_best_score > best_ever_score:
+            best_ever_score = current_best_score
+            # 存檔
+            best_weights = es.result.xbest
+            with open("tetris_best_weights.pkl", "wb") as f:
+                pickle.dump(best_weights, f)
+            print(f"💾 新紀錄！權重已儲存。")
+            
+        print(f"Gen {gen+1} | Best: {current_best_score:.0f} | Avg: {avg_gen_score:.0f} | Max Lines: {max_lines:.1f} | Time: {time.time()-start_time:.1f}s")
+        print(f"   Top Weights: {es.result.xbest}")
+        
+        es.disp()
+
+    print("訓練結束！")
+    pool.close()
+    pool.join()
 
 if __name__ == "__main__":
-    train_a2c()
+    # Windows 必須
+    mp.set_start_method('spawn', force=True)
+    train_evolution()

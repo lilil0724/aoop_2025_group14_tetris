@@ -1,85 +1,76 @@
-import random
 import numpy as np
-import torch
-import copy
 import config
+import copy
+import random
+import torch
 from pieces import Piece
 
-# 定義簡單的 Reward
-REWARD_CLEAR_LINES = [0, 100, 300, 600, 1000] # 0, 1, 2, 3, 4 lines (大幅增加!)
-REWARD_GAME_OVER = -500      # 稍微降低死亡懲罰，鼓勵冒險
-REWARD_SURVIVE = 2           # 活著只給一點點糖吃
-REWARD_HOLE_PENALTY = -2     # 空洞懲罰加重，讓它學會鋪平
-REWARD_HEIGHT_PENALTY = -0.5   # 高度懲罰
-REWARD_BUMPINESS_PENALTY = -0.5 # (新增) 表面不平整的懲罰
+# --- 獎勵參數設定 (瘋狂加碼版) ---
+REWARD_CLEAR_LINES = [0, 50, 200, 800, 10000] 
+REWARD_HOLE_PENALTY = -1.0      
+REWARD_HEIGHT_PENALTY = -0.05   
+REWARD_BUMPINESS_PENALTY = -0.05 
+REWARD_SURVIVE = 1              
+REWARD_GAME_OVER = -500
 
 class TetrisEnv:
     def __init__(self):
         self.reset()
 
     def reset(self):
-        # 0=Empty, 1=Moving, 2=Fixed
         self.board = np.zeros((config.rows, config.columns), dtype=int)
         self.current_piece = self._get_random_piece()
         self.score = 0
+        self.line_count = 0  
+        self.combo = 0       
         self.game_over = False
         self.steps = 0
-        return self._get_state_tensor(self.board, self.current_piece)
+        self.last_cleared_lines = 0 # 新增
+        return self._get_features(self.board)
 
     def _get_random_piece(self):
         shape = random.choice(list(config.shapes.keys()))
-        # 預設從上方中間生成
         return Piece(5, 0, shape)
 
     def step(self, action):
-        """
-        Action 是一個 tuple: (target_x, target_rotation)
-        這是一個簡化的環境，我們假設 AI 可以直接把方塊放到目標位置 (Instant Drop)
-        """
         if self.game_over:
             return 0, True
 
         target_x, target_rot = action
         
-        # 複製一個暫時的 piece 來操作
         piece = copy.deepcopy(self.current_piece)
         piece.rotation = target_rot
         piece.x = target_x
         
-        # 1. 模擬落地 (Hard Drop)
-        # 這裡簡化計算，直接找到該 x 下最低的合法 y
-        final_y = piece.y
+        # 1. 模擬落地
         while self._is_valid_position(self.board, piece, adj_x=0, adj_y=1):
             piece.y += 1
-            final_y = piece.y
             
         # 2. 固定方塊
         self._lock_piece(self.board, piece)
         
         # 3. 檢查消行
         cleared_lines = self._clear_lines(self.board)
+        self.last_cleared_lines = cleared_lines # 記錄下來
+        self.line_count += cleared_lines
         
+        # 4. 計算獎勵
         reward = REWARD_SURVIVE
         reward += REWARD_CLEAR_LINES[cleared_lines]
         
-        # 額外獎勵: 連擊 (Combo) - 鼓勵連續消行
-        # 假設 self.combo 在 reset 時初始化為 0，每次消行 +1，沒消行歸零
         if cleared_lines > 0:
             self.combo += 1
-            reward += (self.combo * 50) # 連擊獎勵
+            reward += (self.combo * 50)
         else:
             self.combo = 0
 
-        # 狀態懲罰計算
-        holes = self._count_holes(self.board)
-        height = self._get_aggregate_height(self.board)
-        bumpiness = self._get_bumpiness(self.board) # 需實作此 helper function
-        
-        reward += (holes * REWARD_HOLE_PENALTY)
-        reward += (height * REWARD_HEIGHT_PENALTY)
-        reward += (bumpiness * REWARD_BUMPINESS_PENALTY)
+        # 狀態懲罰 (雖然 CMA-ES 不用這個 reward，但保留給 PPO 相容)
+        # 這裡簡單算一下，不影響 CMA-ES 的 fitness (它看的是消行數)
+        features = self._get_features(self.board)
+        reward += (features[3] * REWARD_HOLE_PENALTY)      
+        reward += (features[0] * REWARD_HEIGHT_PENALTY)    
 
-        # 5. 檢查是否 Game Over (如果生出的新方塊一出來就撞到)
+        # 5. 檢查 Game Over
         self.current_piece = self._get_random_piece()
         if not self._is_valid_position(self.board, self.current_piece):
             self.game_over = True
@@ -89,69 +80,49 @@ class TetrisEnv:
 
     def get_possible_next_states(self):
         """
-        回傳所有可能的下一步狀態圖像
-        Returns: 
-            states: dictionary {(x, rot): state_tensor_numpy}
+        回傳所有可能的下一步狀態特徵向量
         """
         states = {}
         piece = self.current_piece
         
-        # 遍歷所有旋轉
         num_rotations = len(config.shapes[piece.shape])
         for rot in range(num_rotations):
-            # 遍歷所有可能的 x
-            # 為了效能，我們做簡單邊界檢查 (-2 到 columns)
             for x in range(-2, config.columns + 1):
                 
-                # 模擬這個位置
                 sim_piece = copy.deepcopy(piece)
                 sim_piece.rotation = rot
                 sim_piece.x = x
-                sim_piece.y = 0 # 從頂部開始
+                sim_piece.y = 0 
                 
-                # 如果一開始這個 (x, rot) 就不合法 (例如卡在牆壁裡)，跳過
                 if not self._is_valid_position(self.board, sim_piece):
                     continue
                 
-                # 模擬下落到底
                 while self._is_valid_position(self.board, sim_piece, adj_x=0, adj_y=1):
                     sim_piece.y += 1
                 
-                # 產生對應的 State Tensor
-                # 這裡我們產生 "假設落地後" 的盤面狀態給 AI 評估
                 temp_board = self.board.copy()
                 self._lock_piece(temp_board, sim_piece)
                 
-                # 轉換成 Tensor 格式 (Channels, H, W)
-                tensor_np = self._board_to_tensor_numpy(temp_board, sim_piece)
+                # 計算 5 維特徵
+                features = self._get_features(temp_board)
                 
-                states[(x, rot)] = tensor_np
+                # 標準化 (讓數值不要太大)
+                norm_features = features.copy()
+                norm_features[0] /= 100.0 # Landing Height
+                norm_features[1] /= 20.0  # Row Trans
+                norm_features[2] /= 20.0  # Col Trans
+                norm_features[3] /= 20.0  # Holes
+                norm_features[4] /= 20.0  # Wells
+                
+                states[(x, rot)] = norm_features
                 
         return states
 
-    def _get_state_tensor(self, board, piece):
-        return torch.FloatTensor(self._board_to_tensor_numpy(board, piece))
-
-    def _board_to_tensor_numpy(self, board, piece):
-        # Channel 0: Fixed Board (0 or 1)
-        board_layer = (board == 2).astype(np.float32)
-        
-        # Channel 1: Current Piece (0 or 1)
-        piece_layer = np.zeros_like(board_layer)
-        # 這裡不畫出當前 piece，因為 get_possible_next_states 
-        # 比較的是「落地後的結果」，所以 piece 已經融合進 board_layer 了
-        # 但為了維持輸入格式一致，我們保留這個 channel，或者你可以畫上「預測落點」
-        
-        return np.stack([board_layer, piece_layer], axis=0)
-
     def _is_valid_position(self, board, piece, adj_x=0, adj_y=0):
-        """檢查方塊是否在合法位置"""
         for y, x in self._get_piece_coords(piece):
             nx, ny = x + adj_x, y + adj_y
-            # 邊界檢查
             if nx < 0 or nx >= config.columns or ny >= config.rows:
                 return False
-            # 碰撞檢查 (忽略 y < 0 的上方區域)
             if ny >= 0 and board[ny][nx] == 2:
                 return False
         return True
@@ -162,51 +133,91 @@ class TetrisEnv:
                 board[y][x] = 2
 
     def _get_piece_coords(self, piece):
-        """取得方塊絕對座標"""
-        # 假設 config.shapes 格式為 [ [(y,x), (y,x)...], [旋轉2]... ]
-        # 或者如果你的 config 是二維陣列格式，這裡需要對應調整
-        # 這裡假設你的 pieces.py 裡的 getCells 邏輯
         shape_template = config.shapes[piece.shape][piece.rotation % len(config.shapes[piece.shape])]
         return [(y + piece.y, x + piece.x) for y, x in shape_template]
 
     def _clear_lines(self, board):
         lines_to_clear = [i for i, row in enumerate(board) if all(cell == 2 for cell in row)]
-        for i in lines_to_clear:
-            del_row = np.zeros(config.columns, dtype=int)
-            board[:] = np.vstack([del_row, np.delete(board, i, axis=0)])
-        return len(lines_to_clear)
-        
-    def _count_holes(self, board):
-        holes = 0
-        for col in range(config.columns):
-            is_blocked = False
-            for row in range(config.rows):
-                if board[row][col] == 2:
-                    is_blocked = True
-                elif is_blocked and board[row][col] == 0:
-                    holes += 1
-        return holes
+        count = len(lines_to_clear)
+        if count > 0:
+            mask = np.ones(config.rows, dtype=bool)
+            mask[lines_to_clear] = False
+            new_board = np.zeros_like(board)
+            new_board[count:] = board[mask]
+            board[:] = new_board
+        return count
 
-    def _get_aggregate_height(self, board):
-        total_height = 0
-        for col in range(config.columns):
-            for row in range(config.rows):
-                if board[row][col] == 2:
-                    total_height += (config.rows - row)
-                    break
-        return total_height
+        # --- 8 參數特徵計算 (Tetris 專精版) ---
+    def _get_features(self, board):
+        # board: (20, 10) array, 0 or 2
+        grid = (board == 2).astype(int)
+        rows, cols = grid.shape
 
-    def _get_bumpiness(self, board):
-        total_bumpiness = 0
-        max_heights = []
-        for col in range(config.columns):
-            h = 0
-            for row in range(config.rows):
-                if board[row][col] == 2:
-                    h = config.rows - row
-                    break
-            max_heights.append(h)
+        # 1. Landing Height (平均高度)
+        row_indices = np.arange(rows, 0, -1).reshape(-1, 1)
+        height_grid = grid * row_indices
+        col_heights = np.max(height_grid, axis=0)
+        landing_height = np.mean(col_heights)
         
-        for i in range(len(max_heights) - 1):
-            total_bumpiness += abs(max_heights[i] - max_heights[i+1])
-        return total_bumpiness
+        # 3. Row Transitions
+        row_trans = 0
+        for r in range(rows):
+            line = np.insert(grid[r], [0, cols], 1)
+            row_trans += np.sum(np.abs(np.diff(line)))
+
+        # 4. Column Transitions
+        col_trans = 0
+        for c in range(cols):
+            col = np.insert(grid[:, c], [0, rows], [0, 1])
+            col_trans += np.sum(np.abs(np.diff(col)))
+
+        # 5. Number of Holes
+        cumsum = np.cumsum(grid, axis=0)
+        holes = np.sum((cumsum > 0) & (grid == 0))
+
+        # 6. Well Analysis (詳細分析井)
+        # 我們要計算每一列的 "井深"
+        well_depths = []
+        for c in range(cols):
+            if c == 0: left_wall = np.ones(rows)
+            else: left_wall = grid[:, c-1]
+            
+            if c == cols-1: right_wall = np.ones(rows)
+            else: right_wall = grid[:, c+1]
+            
+            mid = grid[:, c]
+            
+            # 找出所有是井的格子 (左右實，中空)
+            is_well = (left_wall == 1) & (right_wall == 1) & (mid == 0)
+            
+            # 計算深度：從上往下連鎖
+            depth = 0
+            for r in range(rows):
+                if is_well[r]:
+                    depth += 1
+                else:
+                    if depth > 0:
+                        well_depths.append(depth)
+                    depth = 0
+            if depth > 0: well_depths.append(depth)
+            
+        # Well Sums: 所有井的深度和
+        well_sums = sum(well_depths)
+        
+        # 7. Deep Wells (鼓勵留深坑給 I 方塊)
+        # 深度 >= 3 的井，視為 "好井" (準備 Tetris)
+        # 但這也是雙面刃，所以權重讓 CMA-ES 去抓
+        deep_wells = sum([d for d in well_depths if d >= 3])
+        
+        # 8. Cumulative Wells (Dellacherie 原版定義: sum(1..d))
+        # 深度越深，權重越重。例如深 2 的井 = 1+2=3，深 3 = 1+2+3=6
+        cum_wells = sum([d*(d+1)/2 for d in well_depths])
+
+        # 注意：Eroded Piece Cells 需要前後盤面比較，這裡暫時用靜態特徵替代
+        # 或者我們把 Max Height 加回來當第 8 個特徵
+        max_height = np.max(col_heights)
+
+        # 回傳 8 個特徵
+        # [Landing Height, Row Trans, Col Trans, Holes, Well Sums, Deep Wells, Cum Wells, Max Height]
+        return np.array([landing_height, row_trans, col_trans, holes, well_sums, deep_wells, cum_wells, max_height], dtype=np.float32)
+
