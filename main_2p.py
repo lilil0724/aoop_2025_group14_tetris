@@ -11,44 +11,46 @@ import tetris_env
 DEBUG = False
 init_start = (5, 0) 
 
-# --- 核心設定：Dellacherie 最強啟發式權重 ---
-# [Landing Height, Row Trans, Col Trans, Holes, Wells]
-# 這組權重是經過數十年驗證的 "神級參數"
-BEST_WEIGHTS = np.array([ 0.67507198, -3.70668372, -3.1435553,  -6.27496599,  0.26907937])
+# --- 核心設定：8-Feature Tetris AI 權重 ---
+# 特徵順序: [Landing, RowTrans, ColTrans, Holes, WellSums, DeepWells, CumWells, MaxHeight]
+# 這裡填入你 CMA-ES 訓練出來的 Top Weights
+# 如果還沒跑完，這是一組強力的手動調整版 (鼓勵 Tetris):
+# DeepWells 是正的 (+0.5) 代表鼓勵留深坑
+BEST_WEIGHTS = np.array([-1.11136658 ,-1.86078612 ,-0.81386091, -3.91320514 ,-0.57831257 ,-0.11132541
+, -1.11593273 ,-0.82016965])
 
-def get_dellacherie_features(board):
+def get_tetris_features_v8(board):
     """
-    獨立的特徵計算函式 (以防 tetris_env 版本不對)
-    計算 Dellacherie 的 5 大特徵
+    8 參數特徵計算函式 (對應 CMA-ES 訓練的特徵)
     """
     # board: 20x10 list or array
     grid = (np.array(board) == 2).astype(int)
     rows, cols = grid.shape
 
-    # 1. Landing Height (用平均高度代替)
+    # 1. Landing Height (平均高度)
     row_indices = np.arange(rows, 0, -1).reshape(-1, 1)
     height_grid = grid * row_indices
     col_heights = np.max(height_grid, axis=0)
     landing_height = np.mean(col_heights)
     
-    # 2. Row Transitions (橫向變換次數)
+    # 2. Row Transitions
     row_trans = 0
     for r in range(rows):
         line = np.insert(grid[r], [0, cols], 1)
         row_trans += np.sum(np.abs(np.diff(line)))
 
-    # 3. Column Transitions (縱向變換次數)
+    # 3. Column Transitions
     col_trans = 0
     for c in range(cols):
         col = np.insert(grid[:, c], [0, rows], [0, 1])
         col_trans += np.sum(np.abs(np.diff(col)))
 
-    # 4. Number of Holes (空洞數)
+    # 4. Number of Holes
     cumsum = np.cumsum(grid, axis=0)
     holes = np.sum((cumsum > 0) & (grid == 0))
 
-    # 5. Well Sums (井深總和)
-    well_sums = 0
+    # 5. Well Analysis (井的分析)
+    well_depths = []
     for c in range(cols):
         if c == 0: left_wall = np.ones(rows)
         else: left_wall = grid[:, c-1]
@@ -58,23 +60,49 @@ def get_dellacherie_features(board):
         
         mid = grid[:, c]
         is_well = (left_wall == 1) & (right_wall == 1) & (mid == 0)
-        well_sums += np.sum(is_well)
         
-    return np.array([landing_height, row_trans, col_trans, holes, well_sums], dtype=np.float32)
+        depth = 0
+        for r in range(rows):
+            if is_well[r]: depth += 1
+            else:
+                if depth > 0: well_depths.append(depth)
+                depth = 0
+        if depth > 0: well_depths.append(depth)
+        
+    # 5. Well Sums
+    well_sums = sum(well_depths)
+    
+    # 6. Deep Wells (深度 >= 3)
+    deep_wells = sum([d for d in well_depths if d >= 3])
+    
+    # 7. Cumulative Wells
+    cum_wells = sum([d*(d+1)/2 for d in well_depths])
+    
+    # 8. Max Height
+    max_height = np.max(col_heights) if len(col_heights) > 0 else 0
+
+    # 回傳 8 個特徵 (注意順序要跟權重一樣!)
+    features = np.array([landing_height, row_trans, col_trans, holes, well_sums, deep_wells, cum_wells, max_height], dtype=np.float32)
+    
+    # 標準化 (跟訓練時保持一致)
+    features[0] /= 10.0   # Landing
+    features[1] /= 100.0  # Row Trans
+    features[2] /= 100.0  # Col Trans
+    features[3] /= 40.0   # Holes
+    features[4] /= 40.0   # Well Sums
+    features[5] /= 40.0   # Deep Wells
+    features[6] /= 100.0  # Cum Wells
+    features[7] /= 20.0   # Max Height
+    
+    return features
 
 def get_ai_move_heuristic(shot, piece):
     """
-    使用 Dellacherie 演算法決定最佳移動
+    使用 8-Feature 演算法決定最佳移動
     """
-    # 借用 tetris_env 來生成所有可能的物理落點
-    # 這樣我們不用自己寫旋轉和碰撞邏輯
     env = tetris_env.TetrisEnv()
     env.board = np.array(shot.status, dtype=int)
     env.current_piece = copy.deepcopy(piece)
-    
-    # 1. 取得所有可能的下一步 (Physical States)
-    # 注意：這裡我們只拿 (x, rot) 和 對應的盤面，不依賴 env 算好的 features
-    # 因為我們要用自己更強的 Dellacherie features
     
     possible_moves = {}
     piece = env.current_piece
@@ -95,8 +123,6 @@ def get_ai_move_heuristic(shot, piece):
             
             temp_board = env.board.copy()
             env._lock_piece(temp_board, sim_piece)
-            
-            # 存起來：動作 -> 盤面
             possible_moves[(x, rot)] = temp_board
 
     if not possible_moves:
@@ -105,9 +131,9 @@ def get_ai_move_heuristic(shot, piece):
     best_score = -float('inf')
     best_move = None
     
-    # 2. 對每個可能的盤面打分
     for move, board_state in possible_moves.items():
-        features = get_dellacherie_features(board_state)
+        # 使用新的 8 參數特徵計算
+        features = get_tetris_features_v8(board_state)
         score = np.dot(BEST_WEIGHTS, features)
         
         if score > best_score:
@@ -183,9 +209,9 @@ def main():
     myfont = pg.font.SysFont(*config.font)
     fpsClock = pg.time.Clock()
     screen = pg.display.set_mode((config.width, config.height))
-    pg.display.set_caption("Tetris 1v1: Human vs Dellacherie AI")
+    pg.display.set_caption("Tetris 1v1: Human vs 8-Feature AI")
 
-    print("🔥 啟動 Dellacherie AI (The God of Tetris)")
+    print("🔥 啟動 8-Feature AI (Tetris Expert)")
     print(f"使用權重: {BEST_WEIGHTS}")
 
     # --- P1 (Human) ---

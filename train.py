@@ -59,6 +59,10 @@ def evaluate_agent(weights):
                 _, done = env.step(best_action)
                 if env.last_cleared_lines == 4: # 需在 env 中記錄 last_cleared_lines
                     tetris_count += 1
+                elif env.last_cleared_lines == 3:
+                    tetris_count += 0.7
+                elif env.last_cleared_lines == 2:
+                    tetris_count += 0.3
             else:
                 break
         
