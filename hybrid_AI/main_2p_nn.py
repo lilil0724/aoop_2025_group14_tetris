@@ -25,7 +25,7 @@ def draw_grid(surface, offset_x):
     )
     color = (150, 150, 150, 60)
     for y in range(config.rows):
-        pg.draw.line(grid_surface, color, (0, y * config.grid), (config.columns * config.grid, config.rows * config.grid))
+        pg.draw.line(grid_surface, color, (0, y * config.grid), (config.columns * config.grid, y * config.grid))
     for x in range(config.columns):
         pg.draw.line(grid_surface, color, (x * config.grid, 0), (x * config.grid, config.rows * config.grid))
     surface.blit(grid_surface, (offset_x, 0))
@@ -125,7 +125,12 @@ def main():
 
     # AI 先把第一顆放下
     if not game_over2:
-        best_move = ai_nn.find_best_move(copy.deepcopy(shot2), copy.deepcopy(piece2))
+        # 修改：加入 next_piece2 參數
+        best_move = ai_nn.find_best_move(
+            copy.deepcopy(shot2), 
+            copy.deepcopy(piece2),
+            copy.deepcopy(next_piece2) # <--- 新增這行
+        )
         if best_move:
             piece2.x, piece2.rotation = best_move
             Handler.instantDrop(shot2, piece2)
@@ -217,7 +222,12 @@ def main():
                 game_over2 = True
 
             if not game_over2:
-                best_move = ai_nn.find_best_move(copy.deepcopy(shot2), copy.deepcopy(piece2))
+                # 修改：加入 next_piece2 參數
+                best_move = ai_nn.find_best_move(
+                    copy.deepcopy(shot2), 
+                    copy.deepcopy(piece2),
+                    copy.deepcopy(next_piece2) # <--- 新增這行
+                )
                 if best_move:
                     piece2.x, piece2.rotation = best_move
                     Handler.instantDrop(shot2, piece2)
