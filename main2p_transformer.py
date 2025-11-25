@@ -1,26 +1,34 @@
 import pygame as pg
-import pieces
-import shots
-import config
-import Handler
-import random
-import copy
-import numpy as np
-import tetris_env 
 import torch
 import torch.nn as nn
 import numpy as np
 import math
 import os
-from dataset import decode_action  # 用來把 action_id 還原成 (x, rot)
-DEBUG = False
-init_start = (5, 0) 
+import copy
+import random
 
-# --- 核心設定：8-Feature Tetris AI 權重 ---
-# 特徵順序: [Landing, RowTrans, ColTrans, Holes, WellSums, DeepWells, CumWells, MaxHeight]
-# 這裡填入你 CMA-ES 訓練出來的 Top Weights
-# 如果還沒跑完，這是一組強力的手動調整版 (鼓勵 Tetris):
-# DeepWells 是正的 (+0.5) 代表鼓勵留深坑
+# 引入 SB3
+from stable_baselines3 import PPO
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+import gymnasium as gym
+from gymnasium import spaces
+
+# 你的遊戲邏輯檔案
+import pieces
+import shots
+import config
+import Handler
+import tetris_env # 用來取得 observation
+
+# 如果你的 dataset.py 有這一行，可以直接 import；沒有的話就用下面的函式
+from dataset import decode_action 
+
+DEBUG = False
+init_start = (5, 0)
+
+# ------------------------------------------------------
+# 1. 必須重現訓練時的模型結構 (Transformer + Extractor)
+# ------------------------------------------------------
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, max_len: int = 512):
@@ -38,138 +46,101 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:seq_len]
 
 class TetrisTransformer(nn.Module):
-    def __init__(
-        self,
-        board_dim: int = 200,
-        n_pieces: int = 7,
-        d_model: int = 128,
-        nhead: int = 4,
-        num_layers: int = 3,
-        action_dim: int = 64
-    ):
+    def __init__(self, board_dim: int = 200, n_pieces: int = 7, d_model: int = 128, nhead: int = 4, num_layers: int = 3, action_dim: int = 64):
         super().__init__()
         self.board_proj = nn.Linear(board_dim, d_model)
         self.piece_emb = nn.Embedding(n_pieces, d_model)
         self.pos_encoder = PositionalEncoding(d_model, max_len=2)
-
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model,
-            nhead=nhead,
-            dim_feedforward=4 * d_model,
-            dropout=0.1,
-            batch_first=False
-        )
+        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dim_feedforward=4 * d_model, dropout=0.1, batch_first=False)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         self.action_head = nn.Linear(d_model, action_dim)
 
     def forward(self, board_flat: torch.Tensor, piece_id: torch.Tensor) -> torch.Tensor:
-        # board_flat: (batch, 200)
-        # piece_id:   (batch,)
-        board_token = self.board_proj(board_flat)     # (batch, d_model)
-        piece_token = self.piece_emb(piece_id)        # (batch, d_model)
+        board_token = self.board_proj(board_flat)
+        piece_token = self.piece_emb(piece_id)
+        tokens = torch.stack([piece_token, board_token], dim=0)
+        tokens = self.pos_encoder(tokens)
+        output = self.transformer(tokens)
+        cls_token = output[0]
+        return cls_token # 注意：PPO 不用這裡的 logits，只拿特徵
 
-        tokens = torch.stack([piece_token, board_token], dim=0)  # (seq=2, batch, d_model)
-        tokens = self.pos_encoder(tokens)                         # 加位置編碼
+class TransformerExtractor(BaseFeaturesExtractor):
+    def __init__(self, observation_space: spaces.Box, features_dim: int = 128):
+        super().__init__(observation_space, features_dim)
+        self.transformer = TetrisTransformer(
+            board_dim=200, n_pieces=7, d_model=128, 
+            nhead=4, num_layers=3, action_dim=64
+        )
 
-        output = self.transformer(tokens)        # (seq=2, batch, d_model)
-        cls_token = output[0]                    # (batch, d_model)
-        logits = self.action_head(cls_token)     # (batch, action_dim)
-        return logits
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
+        piece_id = observations[:, 0].long()
+        board_flat = observations[:, 1:]
+        return self.transformer(board_flat, piece_id)
 
-MODEL_PATH = "transformer_tetris.pth"
+# ------------------------------------------------------
+# 2. 載入與推論
+# ------------------------------------------------------
+
+MODEL_PATH = "ppo_transformer_tetris_continued.zip" # 你的模型檔名
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def load_ai_model():
-    model = TetrisTransformer().to(DEVICE)
+def load_ppo_model():
+    print(f"🔄 正在載入 PPO 模型: {MODEL_PATH} ...")
     if os.path.exists(MODEL_PATH):
-        state = torch.load(MODEL_PATH, map_location=DEVICE)
-        model.load_state_dict(state)
-        model.eval()
-        print("✅ Transformer 模型載入成功")
-        return model
+        # 載入 PPO 模型
+        # custom_objects 告訴 PPO 我們的 Extractor 類別在哪裡
+        try:
+            model = PPO.load(MODEL_PATH, device=DEVICE)
+            print("✅ PPO 模型載入成功！準備戰鬥！")
+            return model
+        except Exception as e:
+            print(f"❌ 載入失敗: {e}")
+            print("可能原因：類別定義不一致，或缺少 stable-baselines3")
+            return None
     else:
-        print("⚠️ 找不到模型檔案，AI 會停用")
+        print(f"⚠️ 找不到檔案 {MODEL_PATH}")
         return None
 
-def get_transformer_move(model, shot, piece):
+def get_ppo_move(model, shot, piece):
     if model is None:
         return None
 
-    # 盤面轉成 0/1 mask，跟訓練時一致
-    board_np = (np.array(shot.status, dtype=np.int32) == 2).astype(np.float32)
-    board_flat = board_np.reshape(1, -1)                      # (1, 200)
-
-    # 方塊 ID：對應 config.shapes 的索引
+    # 1. 準備 observation (跟訓練時一樣：[piece_id, ...board...])
+    # 盤面轉成 0/1
+    board_np = (np.array(shot.status) == 2).astype(np.float32).flatten()
+    
     shape_list = list(config.shapes.keys())
     piece_id = shape_list.index(piece.shape)
-
-    board_t = torch.tensor(board_flat, dtype=torch.float32).to(DEVICE)
-    piece_t = torch.tensor([piece_id], dtype=torch.long).to(DEVICE)
-
-    with torch.no_grad():
-        logits = model(board_t, piece_t)                      # (1, 64)
-        action_id = logits.argmax(dim=1).item()
-
+    
+    obs = np.concatenate(([piece_id], board_np))
+    
+    # 2. 預測動作
+    # predict 回傳 (action, state)，我們只要 action
+    # deterministic=True 代表不使用隨機探索，直接選機率最高的
+    action_id, _ = model.predict(obs, deterministic=True)
+    
+    # action_id 是一個 numpy array 或 int
+    if isinstance(action_id, np.ndarray):
+        action_id = action_id.item()
+        
+    # 3. 解碼
     x, rot = decode_action(action_id)
-
-    # 簡單保護一下，避免非法 x 直接炸遊戲
+    
+    # 保護
     if x < -2 or x > config.columns + 3:
         return None
-
+        
     return x, rot
 
-
-def get_ai_move_heuristic(shot, piece):
-    """
-    使用 8-Feature 演算法決定最佳移動
-    """
-    env = tetris_env.TetrisEnv()
-    env.board = np.array(shot.status, dtype=int)
-    env.current_piece = copy.deepcopy(piece)
-    
-    possible_moves = {}
-    piece = env.current_piece
-    num_rotations = len(config.shapes[piece.shape])
-    
-    for rot in range(num_rotations):
-        for x in range(-2, config.columns + 1):
-            sim_piece = copy.deepcopy(piece)
-            sim_piece.rotation = rot
-            sim_piece.x = x
-            sim_piece.y = 0 
-            
-            if not env._is_valid_position(env.board, sim_piece):
-                continue
-            
-            while env._is_valid_position(env.board, sim_piece, adj_x=0, adj_y=1):
-                sim_piece.y += 1
-            
-            temp_board = env.board.copy()
-            env._lock_piece(temp_board, sim_piece)
-            possible_moves[(x, rot)] = temp_board
-
-    if not possible_moves:
-        return None 
-        
-    best_score = -float('inf')
-    best_move = None
-    
-    for move, board_state in possible_moves.items():
-        # 使用新的 8 參數特徵計算
-        features = get_tetris_features_v8(board_state)
-        score = np.dot(BEST_WEIGHTS, features)
-        
-        if score > best_score:
-            best_score = score
-            best_move = move
-            
-    return best_move 
+# ------------------------------------------------------
+# 3. 遊戲主程式 (只修改 AI 部分)
+# ------------------------------------------------------
 
 def getRandomPiece():
     shape = random.choice(list(config.shapes.keys()))
-    piece = pieces.Piece(*init_start, shape)
-    return piece
+    return pieces.Piece(*init_start, shape)
 
+# (省略 draw_grid 和 draw_player_ui，這兩者與你原本的完全一樣)
 def draw_grid(surface, offset_x):
     grid_surface = pg.Surface((config.columns * config.grid, config.rows * config.grid), pg.SRCALPHA)
     color = (150, 150, 150, 60)
@@ -182,48 +153,32 @@ def draw_grid(surface, offset_x):
 def draw_player_ui(screen, shot, piece, next_piece, font, offset_x, score_pos, line_pos, next_piece_pos, garbage_bar_pos): 
     for y in range(config.rows):
         for x in range(config.columns):
-            if shot.status[y][x] != 2:
-                shot.status[y][x] = 0
-
+            if shot.status[y][x] != 2: shot.status[y][x] = 0
     if not piece.is_fixed:
         for y, x in Handler.getCellsAbsolutePosition(piece):
             if 0 <= y < config.rows and 0 <= x < config.columns:
                 shot.color[y][x] = piece.color
                 shot.status[y][x] = 1
-
     for y, line in enumerate(shot.color):
         for x, color in enumerate(line):
-            if shot.status[y][x] == 0:
-                draw_color = (0, 0, 0)
-            else:
-                draw_color = color
+            draw_color = color if shot.status[y][x] != 0 else (0, 0, 0)
             pg.draw.rect(screen, draw_color, (offset_x + x * config.grid, y * config.grid, config.grid, config.grid))
-
     textsurface = font.render(f'Score: {shot.score}', False, (255, 255, 255))
     screen.blit(textsurface, score_pos)
     textsurface = font.render(f'Line: {shot.line_count}', False, (255, 255, 255))
     screen.blit(textsurface, line_pos)
-
     for y in range(-2, 3):
         for x in range(-2, 3):
             pg.draw.rect(screen, (50, 50, 50), (next_piece_pos[0] + x * config.grid, next_piece_pos[1] + y * config.grid, config.grid, config.grid))
-
     for y, x in next_piece.getCells():
-        color = next_piece.color
-        pg.draw.rect(screen, color, (next_piece_pos[0] + x * config.grid, next_piece_pos[1] + y * config.grid, config.grid, config.grid))
-    
+        pg.draw.rect(screen, next_piece.color, (next_piece_pos[0] + x * config.grid, next_piece_pos[1] + y * config.grid, config.grid, config.grid))
     if shot.pending_garbage > 0:
-        bar_max_height = config.height * 0.9 
-        bar_y_start = config.height * 0.05
-        pending_visual = min(shot.pending_garbage, 12) 
-        bar_fill_ratio = pending_visual / 12.0
-        bar_height = bar_max_height * bar_fill_ratio
-        bar_x = garbage_bar_pos[0]
-        bar_y_fill = (bar_y_start + bar_max_height) - bar_height
-        
-        pg.draw.rect(screen, (80, 80, 80), (bar_x, bar_y_start, config.GARBAGE_BAR_WIDTH, bar_max_height))
-        pg.draw.rect(screen, (255, 50, 50), (bar_x, bar_y_fill, config.GARBAGE_BAR_WIDTH, bar_height))
-
+        bar_h = config.height * 0.9 
+        fill_ratio = min(shot.pending_garbage, 12) / 12.0
+        fill_h = bar_h * fill_ratio
+        bx, by = garbage_bar_pos[0], config.height * 0.05
+        pg.draw.rect(screen, (80, 80, 80), (bx, by, config.GARBAGE_BAR_WIDTH, bar_h))
+        pg.draw.rect(screen, (255, 50, 50), (bx, (by + bar_h) - fill_h, config.GARBAGE_BAR_WIDTH, fill_h))
     draw_grid(screen, offset_x)
 
 def main():
@@ -232,35 +187,29 @@ def main():
     myfont = pg.font.SysFont(*config.font)
     fpsClock = pg.time.Clock()
     screen = pg.display.set_mode((config.width, config.height))
-    pg.display.set_caption("Tetris 1v1: Human vs 8-Feature AI")
+    pg.display.set_caption("Tetris 1v1: Human vs PPO Transformer")
 
-    # --- P1 (Human) ---
-    shot1 = shots.Shot()
-    piece1 = getRandomPiece()
-    next_piece1 = getRandomPiece()
+    # 載入 PPO 模型
+    ai_model = load_ppo_model()
+
+    # 遊戲初始化
+    shot1, piece1, next_piece1 = shots.Shot(), getRandomPiece(), getRandomPiece()
+    shot2, piece2, next_piece2 = shots.Shot(), getRandomPiece(), getRandomPiece()
     counter1 = 0
     key_ticker1 = {pg.K_a: 0, pg.K_s: 0, pg.K_d: 0}
     game_over1 = False
-
-    # --- P2 (AI) ---
-    ai_model = load_ai_model()
-
-    # --- P2 遊戲狀態 (AI) ---
-    shot2 = shots.Shot()
-    piece2 = getRandomPiece()
-    next_piece2 = getRandomPiece()
     game_over2 = False
-        
+    
     # AI First Move
     if ai_model is not None and not game_over2:
-        move = get_transformer_move(ai_model, shot2, piece2)
+        move = get_ppo_move(ai_model, shot2, piece2)
         if move is not None:
             piece2.x, piece2.rotation = move
         Handler.instantDrop(shot2, piece2)
     
     run = True
     while run:
-        # Auto Drop (Human only)
+        # P1 Logic
         if not DEBUG and not game_over1:
             if counter1 == config.difficulty:
                 Handler.drop(shot1, piece1)
@@ -268,7 +217,6 @@ def main():
             else:
                 counter1 += 1
 
-        # Garbage Handling
         if not game_over1 and shot1.pending_garbage > 0:
             shot1.garbage_insert_timer += 1
             if shot1.garbage_insert_timer > config.GARBAGE_INSERT_DELAY:
@@ -287,7 +235,6 @@ def main():
                 shot2.garbage_insert_timer = 0
                 if Handler.isDefeat(shot2, piece2): game_over2 = True
 
-        # Events
         for event in pg.event.get():
             if event.type == pg.QUIT: run = False
             elif event.type == pg.KEYDOWN:
@@ -307,7 +254,6 @@ def main():
         for k in key_ticker1: 
             if key_ticker1[k] > 0: key_ticker1[k] -= 1
 
-        # P1 Update
         if not game_over1 and piece1.is_fixed:
             clears, all_clear = Handler.eliminateFilledRows(shot1, piece1)
             atk1 = Handler.calculateAttack(clears, shot1.combo_count, shot1.is_b2b, all_clear)
@@ -319,9 +265,9 @@ def main():
                 atk1 -= cancel
                 shot2.pending_garbage += atk1
             piece1, next_piece1 = next_piece1, getRandomPiece()
-            if Handler.isDefeat(shot1, piece1): game_over1 = True; print("P1 Game Over")
+            if Handler.isDefeat(shot1, piece1): game_over1 = True
 
-        # P2 (AI) Update
+        # P2 Update (AI)
         if not game_over2 and piece2.is_fixed: 
             clears, all_clear = Handler.eliminateFilledRows(shot2, piece2)
             atk2 = Handler.calculateAttack(clears, shot2.combo_count, shot2.is_b2b, all_clear)
@@ -335,9 +281,9 @@ def main():
             piece2, next_piece2 = next_piece2, getRandomPiece()
             if Handler.isDefeat(shot2, piece2): game_over2 = True; print("P2 Game Over")
             
-            # AI Think
+            # AI 思考
             if not game_over2 and ai_model is not None:
-                move = get_transformer_move(ai_model, shot2, piece2)
+                move = get_ppo_move(ai_model, shot2, piece2)
                 if move is not None:
                     piece2.x, piece2.rotation = move
                 Handler.instantDrop(shot2, piece2)
@@ -351,9 +297,6 @@ def main():
         pg.display.update()
         fpsClock.tick(config.fps)
     
-    print("----- Final Result -----")
-    print(f"P1 Score: {shot1.score} | Lines: {shot1.line_count}")
-    print(f"P2 Score: {shot2.score} | Lines: {shot2.line_count}")
     pg.quit()
 
 if __name__ == "__main__":

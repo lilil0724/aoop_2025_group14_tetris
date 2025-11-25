@@ -223,7 +223,7 @@ if __name__ == "__main__":
     # train_rl()
     
     # 如果你想接續練，就用這段：
-    model_path = "ppo_transformer_tetris_final.zip" # 上次存的檔
+    model_path = "ppo_transformer_tetris_continued.zip" # 上次存的檔
     if os.path.exists(model_path):
         print(f"🔄 載入 {model_path} 繼續訓練...")
         env = TetrisGymEnv()
