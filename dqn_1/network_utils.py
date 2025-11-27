@@ -14,12 +14,25 @@ class NetworkManager:
         self.lock = threading.Lock()
         self.running = True
 
+    def get_local_ip(self):
+        try:
+            # 嘗試連線到外部地址 (Google DNS) 來判斷正確的對外網卡 IP
+            # 不會真的建立連線，只是用來查詢路由
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except:
+            try:
+                return socket.gethostbyname(socket.gethostname())
+            except:
+                return "127.0.0.1"
+
     def host_game(self, port=5555):
         self.is_server = True
         try:
-            # Get local IP to display
-            hostname = socket.gethostname()
-            local_ip = socket.gethostbyname(hostname)
+            local_ip = self.get_local_ip()
             print(f"Hosting on {local_ip}:{port}")
             
             self.client.bind(("0.0.0.0", port))

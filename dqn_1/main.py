@@ -935,11 +935,7 @@ def lan_menu(screen, font):
                             return None, None
                         elif btn.action_code == "HOST":
                             # Show waiting screen with non-blocking loop
-                            try:
-                                hostname = socket.gethostname()
-                                local_ip = socket.gethostbyname(hostname)
-                            except:
-                                local_ip = "Unknown"
+                            local_ip = net_mgr.get_local_ip()
 
                             # Start hosting in a separate thread
                             host_thread = threading.Thread(target=net_mgr.host_game, daemon=True)
@@ -1004,10 +1000,14 @@ def lan_menu(screen, font):
                                     waiting = False
                                     # Show error
                                     err_start = pg.time.get_ticks()
-                                    while pg.time.get_ticks() - err_start < 1500:
+                                    while pg.time.get_ticks() - err_start < 3000:
                                         screen.fill(config.background_color)
                                         err_surf = font.render("Connection Failed!", True, (255, 50, 50))
-                                        screen.blit(err_surf, err_surf.get_rect(center=(config.width//2, config.height//2)))
+                                        hint_surf = pg.font.SysFont('Arial', 20).render("Check IP or Firewall settings", True, (200, 200, 200))
+                                        
+                                        screen.blit(err_surf, err_surf.get_rect(center=(config.width//2, config.height//2 - 20)))
+                                        screen.blit(hint_surf, hint_surf.get_rect(center=(config.width//2, config.height//2 + 30)))
+                                        
                                         pg.display.update()
                                         pg.event.pump()
                                     
