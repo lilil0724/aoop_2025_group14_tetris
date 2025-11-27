@@ -24,8 +24,9 @@ MAX_STEPS = 5000       # 每場最多玩幾步 (避免無限玩)
 # Col Trans: -1
 # Holes: -4  (空洞懲罰最重)
 # Wells: -1
-INITIAL_WEIGHTS = [-1.0, -1.0, -1.0, -4.0, -1.0, 0.5, -1.0, -1.0]
-INITIAL_SIGMA = 0.5    # 突變幅度
+INITIAL_WEIGHTS = [-1.37156088, -2.23096415, -0.74890419, -3.87641746, -0.53129402, -0.36264025,
+  0.04413783, -0.91904935]
+INITIAL_SIGMA = 0.1    # 突變幅度
 
 # --- 評估函數 (Worker) ---
 def evaluate_agent(weights):

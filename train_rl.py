@@ -5,16 +5,14 @@ import gymnasium as gym
 from gymnasium import spaces
 from stable_baselines3 import PPO
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
 import math
 import os
-
 import config
 import tetris_env
-import copy
 
 # -------------------------------------------------
-# 0. Transformer 模型定義 (必須與訓練時完全一致)
+# 0. Transformer 模型定義
 # -------------------------------------------------
 
 class PositionalEncoding(nn.Module):
@@ -49,8 +47,7 @@ class TetrisTransformer(nn.Module):
         tokens = self.pos_encoder(tokens)
         output = self.transformer(tokens)
         cls_token = output[0]
-        logits = self.action_head(cls_token)
-        return logits
+        return cls_token
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -61,11 +58,7 @@ class TetrisGymEnv(gym.Env):
     def __init__(self):
         super().__init__()
         self.env = tetris_env.TetrisEnv()
-        
-        # 觀察空間: [piece_id (1) + board (200)] = 201
         self.observation_space = spaces.Box(low=0, high=7, shape=(201,), dtype=np.float32)
-        
-        # 動作空間: 64 個離散動作
         self.action_space = spaces.Discrete(64) 
 
     def reset(self, seed=None, options=None):
@@ -74,7 +67,6 @@ class TetrisGymEnv(gym.Env):
         return self._get_obs(), {}
 
     def step(self, action_id):
-        # 解碼動作 (Action ID -> x, rot)
         max_rot = 4
         min_x = -2
         max_x = config.columns + 3
@@ -84,85 +76,66 @@ class TetrisGymEnv(gym.Env):
         x_idx = action_id % num_x
         x = x_idx + min_x
         
-        # 執行動作
-        # 注意：這裡我們依賴 tetris_env 內部的 step
-        # 如果 env.step 回傳的 reward 已經包含消行獎勵，那很好
         original_reward, game_over = self.env.step((x, rot))
-        
         rl_reward = original_reward
-        
-        # [強化獎勵機制]
+
+        # 獎勵正規化邏輯
         if game_over:
-            rl_reward = -100.0  # 死亡重罰
+            rl_reward = -1.0 
         else:
-            # 生存獎勵 (鼓勵活下去)
-            rl_reward += 0.5
+            rl_reward = 0.01
+            if original_reward > 0:
+                 rl_reward += original_reward / 100.0
             
-            # 我們可以額外獎勵消行 (如果 original_reward 已經有，這行可以省略)
-            # 假設 env.line_count 會在 step 後更新
-            # rl_reward += self.env.last_cleared_lines * 10.0 
-            
-        # 截斷 (Truncated): 這裡暫時不使用步數截斷，讓它自然死亡
-        truncated = False
-        
-        return self._get_obs(), rl_reward, game_over, truncated, {}
+        return self._get_obs(), rl_reward, game_over, False, {}
 
     def _get_obs(self):
-        # 取得盤面 (200維)
         board_np = (self.env.board == 2).astype(np.float32).flatten()
-        
-        # 取得方塊 ID
         shape_list = list(config.shapes.keys())
-        piece_id = shape_list.index(self.env.current_piece.shape)
-        
-        # 拼接
+        try:
+            piece_id = shape_list.index(self.env.current_piece.shape)
+        except:
+            piece_id = 0
         obs = np.concatenate(([piece_id], board_np))
         return obs
 
 # -------------------------------------------------
-# 2. 特徵提取器 (載入預訓練權重)
+# 2. 特徵提取器
 # -------------------------------------------------
 class TransformerExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space: spaces.Box, features_dim: int = 128):
         super().__init__(observation_space, features_dim)
         
-        # 建立 Transformer
         self.transformer = TetrisTransformer(
             board_dim=200, n_pieces=7, d_model=128, 
             nhead=4, num_layers=3, action_dim=64
         )
         
-        # 載入預訓練權重
         pretrained_path = "transformer_tetris.pth"
         if os.path.exists(pretrained_path):
             try:
                 print(f"🔄 正在載入預訓練權重: {pretrained_path} ...")
                 pretrained_dict = torch.load(pretrained_path, map_location=DEVICE)
-                
-                # 過濾掉 action_head (因為 PPO 會自己建立新的 Policy Head)
                 model_dict = self.transformer.state_dict()
                 pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and 'action_head' not in k}
-                
                 model_dict.update(pretrained_dict)
                 self.transformer.load_state_dict(model_dict)
-                print("✅ 成功載入 Transformer 特徵提取層！(Transfer Learning)")
+                print("✅ 成功載入 Transformer 權重！")
                 
-                # 可選：凍結 Transformer 權重，只訓練 Policy Head (先練手腳)
-                # for param in self.transformer.parameters():
-                #     param.requires_grad = False
-                # print("❄️ Transformer 權重已凍結")
+                # [初始狀態]：先凍結所有權重
+                for param in self.transformer.parameters():
+                    param.requires_grad = False
+                print("❄️ Transformer 權重已初始化為凍結狀態 (等待 100k 步後解凍)")
                 
             except Exception as e:
-                print(f"⚠️ 權重載入失敗: {e}，將從頭訓練。")
+                print(f"⚠️ 權重載入失敗: {e}")
         else:
-            print("⚠️ 找不到預訓練權重，將從頭訓練。")
+            print(f"⚠️ 找不到預訓練權重，將從頭訓練。")
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
-        # observations: [Batch, 201]
         piece_id = observations[:, 0].long()
         board_flat = observations[:, 1:]
         
-        # 手動執行 Transformer 前半段
         board_token = self.transformer.board_proj(board_flat)
         piece_token = self.transformer.piece_emb(piece_id)
         
@@ -170,67 +143,88 @@ class TransformerExtractor(BaseFeaturesExtractor):
         tokens = self.transformer.pos_encoder(tokens)
         
         output = self.transformer.transformer(tokens)
-        cls_token = output[0] # [Batch, 128]
+        cls_token = output[0]
         
         return cls_token
 
 # -------------------------------------------------
-# 3. 主訓練流程
+# 3. 客製化 Callback: 自動解凍權重
 # -------------------------------------------------
-def train_rl():
+class FreezeCallback(BaseCallback):
+    def __init__(self, unfreeze_steps: int = 100000, verbose: int = 1):
+        super().__init__(verbose)
+        self.unfreeze_steps = unfreeze_steps
+        self.is_unfrozen = False
+
+    def _on_step(self) -> bool:
+        # 檢查是否達到解凍步數
+        if self.num_timesteps > self.unfreeze_steps and not self.is_unfrozen:
+            print(f"\n🔓 達到 {self.num_timesteps} 步！正在解凍 Transformer 權重...")
+            
+            # 取得 Policy 中的特徵提取器 (Transformer)
+            features_extractor = self.model.policy.features_extractor
+            
+            # 解凍權重：只要把開關打開，Optimizer 下一次就會自動更新它們
+            for param in features_extractor.transformer.parameters():
+                param.requires_grad = True
+            
+            # 這裡不需要再呼叫 optimizer.add_param_group，因為 SB3 初始化時已經把所有參數都傳給 optimizer 了
+            
+            self.is_unfrozen = True
+            print("✅ Transformer 權重已解凍，現在開始會參與梯度更新！")
+            
+        return True
+# -------------------------------------------------
+# 4. 主訓練流程
+# -------------------------------------------------
+def train_rl(continue_training=False):
     print(f"🔥 啟動 RL 強化學習訓練 | Device: {DEVICE}")
     
-    # 建立環境
     env = TetrisGymEnv()
     
-    # 定義 Checkpoint (每 50000 步存一次)
-    checkpoint_callback = CheckpointCallback(
-        save_freq=50000,
-        save_path="./rl_checkpoints/",
-        name_prefix="ppo_tetris"
-    )
+    checkpoint_callback = CheckpointCallback(save_freq=50000, save_path="./rl_checkpoints/", name_prefix="ppo_tetris")
     
-    # PPO 設定
-    model = PPO(
-        "MlpPolicy", 
-        env, 
-        verbose=1,
-        device=DEVICE,
-        policy_kwargs={
-            "features_extractor_class": TransformerExtractor,
-            "features_extractor_kwargs": {"features_dim": 128}, 
-            "net_arch": dict(pi=[64, 64], vf=[64, 64]) # Policy Head & Value Head
-        },
-        learning_rate=1e-5, # 降低學習率，保護預訓練權重
-        n_steps=2048,
-        batch_size=64,
-        n_epochs=10,
-        ent_coef=0.01,      # 增加熵，鼓勵探索
-    )
+    # [新增] 註冊 FreezeCallback，設定 100,000 步解凍
+    freeze_callback = FreezeCallback(unfreeze_steps=100000)
+    
+    # 組合 Callbacks (Checkpoint + Freeze)
+    callbacks = [checkpoint_callback, freeze_callback]
+    
+    model_path = "ppo_transformer_tetris_continued.zip"
+    
+    if continue_training and os.path.exists(model_path):
+        print(f"🔄 載入 {model_path} 繼續訓練...")
+        model = PPO.load(model_path, env=env, device=DEVICE)
+        # 續練時，如果已經超過 10萬步，記得手動解凍 (或是 FreezeCallback 邏輯也會自動處理)
+    else:
+        print("✨ 開始全新的 PPO 訓練 (前 100k 步凍結特徵層)")
+        model = PPO(
+            "MlpPolicy", 
+            env, 
+            verbose=1,
+            device=DEVICE,
+            policy_kwargs={
+                "features_extractor_class": TransformerExtractor,
+                "features_extractor_kwargs": {"features_dim": 128}, 
+                "net_arch": dict(pi=[64, 64], vf=[64, 64])
+            },
+            learning_rate=3e-4,
+            n_steps=2048,
+            batch_size=64,
+            n_epochs=10,
+            ent_coef=0.01,
+            clip_range=0.2,
+        )
     
     print("🚀 開始訓練 (Target: 1M steps)...")
     try:
-        model.learn(total_timesteps=1000000, callback=checkpoint_callback)
+        model.learn(total_timesteps=1000000, callback=callbacks, reset_num_timesteps=not continue_training)
     except KeyboardInterrupt:
         print("🛑 訓練被手動中斷")
     
-    # 最終存檔
-    model.save("ppo_transformer_tetris_final")
-    print("💾 最終 RL 模型已儲存為 ppo_transformer_tetris_final.zip")
+    model.save("ppo_transformer_tetris_continued")
+    print("💾 模型已儲存為 ppo_transformer_tetris_continued.zip")
 
 if __name__ == "__main__":
-    # 如果你想從頭練，就呼叫 train_rl()
-    # train_rl()
-    
-    # 如果你想接續練，就用這段：
-    model_path = "ppo_transformer_tetris_continued.zip" # 上次存的檔
-    if os.path.exists(model_path):
-        print(f"🔄 載入 {model_path} 繼續訓練...")
-        env = TetrisGymEnv()
-        model = PPO.load(model_path, env=env, device=DEVICE)
-        model.learn(total_timesteps=100000, reset_num_timesteps=False)
-        model.save("ppo_transformer_tetris_continued")
-        print("💾 續練完成並存檔")
-    else:
-        print("❌ 找不到舊檔，開始新訓練")
-        train_rl()
+    # 建議設為 False 重新開始，以觀察完整的凍結->解凍過程
+    train_rl(continue_training=False)

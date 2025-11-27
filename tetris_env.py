@@ -6,12 +6,12 @@ import torch
 from pieces import Piece
 
 # --- 獎勵參數設定 (CMA-ES 訓練時其實不太需要，但為了相容性保留) ---
-REWARD_CLEAR_LINES = [0, 50, 200, 800, 10000] 
-REWARD_HOLE_PENALTY = -1.0      
+REWARD_CLEAR_LINES = [0, 0.1, 0.4, 1.6, 5.0] # 鼓勵消行
+REWARD_HOLE_PENALTY = -0.05 # 稍微懲罰空洞   
 REWARD_HEIGHT_PENALTY = -0.05   
 REWARD_BUMPINESS_PENALTY = -0.05 
-REWARD_SURVIVE = 1              
-REWARD_GAME_OVER = -500
+REWARD_SURVIVE = 0.01    # 活著給一點點鼓勵             
+REWARD_GAME_OVER = -1.0  # 死掉扣 1 分就好，不要扣 500
 
 class TetrisEnv:
     def __init__(self):
@@ -35,11 +35,23 @@ class TetrisEnv:
     def step(self, action):
         if self.game_over:
             return 0, True
-
+            
         target_x, target_rot = action
-        piece = copy.deepcopy(self.current_piece)
-        piece.rotation = target_rot
-        piece.x = target_x
+        
+        # 1. 先檢查目標位置是否合法 (Ex: 是否撞牆、是否在一出生就重疊)
+        # 為了測試，我們先把方塊放到目標位置的頂端 (y=0)
+        test_piece = copy.deepcopy(self.current_piece)
+        test_piece.rotation = target_rot
+        test_piece.x = target_x
+        test_piece.y = 0 # 確保從頭測起
+
+        if not self._is_valid_position(self.board, test_piece):
+            # [修正] 如果 AI 給出非法移動，直接判死！
+            self.game_over = True
+            return REWARD_GAME_OVER, True
+
+        # 2. 如果合法，才執行落下邏輯
+        piece = test_piece # 使用剛剛測試過的合法方塊
         
         while self._is_valid_position(self.board, piece, adj_x=0, adj_y=1):
             piece.y += 1

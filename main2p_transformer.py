@@ -1,33 +1,29 @@
 import pygame as pg
-import torch
-import torch.nn as nn
-import numpy as np
-import math
-import os
-import copy
-import random
-
-# 引入 SB3
-from stable_baselines3 import PPO
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-import gymnasium as gym
-from gymnasium import spaces
-
-# 你的遊戲邏輯檔案
 import pieces
 import shots
 import config
 import Handler
-import tetris_env # 用來取得 observation
+import random
+import copy
+import numpy as np
+import tetris_env
+import torch
+import torch.nn as nn
+import math
+import os
 
-# 如果你的 dataset.py 有這一行，可以直接 import；沒有的話就用下面的函式
-from dataset import decode_action 
+# 引入 Stable Baselines 3
+from stable_baselines3 import PPO
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+from gymnasium import spaces
 
 DEBUG = False
 init_start = (5, 0)
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+MODEL_PATH = "ppo_transformer_tetris_continued.zip"
 
 # ------------------------------------------------------
-# 1. 必須重現訓練時的模型結構 (Transformer + Extractor)
+# 1. Transformer 模型定義
 # ------------------------------------------------------
 
 class PositionalEncoding(nn.Module):
@@ -62,13 +58,13 @@ class TetrisTransformer(nn.Module):
         tokens = self.pos_encoder(tokens)
         output = self.transformer(tokens)
         cls_token = output[0]
-        return cls_token # 注意：PPO 不用這裡的 logits，只拿特徵
+        return cls_token
 
 class TransformerExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space: spaces.Box, features_dim: int = 128):
         super().__init__(observation_space, features_dim)
         self.transformer = TetrisTransformer(
-            board_dim=200, n_pieces=7, d_model=128, 
+            board_dim=200, n_pieces=7, d_model=128,
             nhead=4, num_layers=3, action_dim=64
         )
 
@@ -78,69 +74,96 @@ class TransformerExtractor(BaseFeaturesExtractor):
         return self.transformer(board_flat, piece_id)
 
 # ------------------------------------------------------
-# 2. 載入與推論
+# 2. 載入與推論邏輯 (get_ppo_move)
 # ------------------------------------------------------
 
-MODEL_PATH = "ppo_transformer_tetris_continued.zip" # 你的模型檔名
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def decode_action(action_id: int, max_rot: int = 4, min_x: int = -2, max_x: int = None):
+    if max_x is None:
+        max_x = config.columns + 3
+    num_x = max_x - min_x + 1
+    rot = action_id // num_x
+    x_idx = action_id % num_x
+    x = x_idx + min_x
+    return x, rot
 
-def load_ppo_model():
+def load_ai_model():
     print(f"🔄 正在載入 PPO 模型: {MODEL_PATH} ...")
     if os.path.exists(MODEL_PATH):
-        # 載入 PPO 模型
-        # custom_objects 告訴 PPO 我們的 Extractor 類別在哪裡
         try:
             model = PPO.load(MODEL_PATH, device=DEVICE)
-            print("✅ PPO 模型載入成功！準備戰鬥！")
+            print("✅ PPO 模型載入成功！")
             return model
         except Exception as e:
             print(f"❌ 載入失敗: {e}")
-            print("可能原因：類別定義不一致，或缺少 stable-baselines3")
             return None
     else:
         print(f"⚠️ 找不到檔案 {MODEL_PATH}")
         return None
 
 def get_ppo_move(model, shot, piece):
-    if model is None:
+    """
+    取得 AI 建議的動作 (target_x, target_rot)
+    如果模型預測無效或無法移動，回傳 None
+    """
+    if model is None: return None
+
+    # 1. 獲取乾淨盤面
+    raw_board = np.array(shot.status, dtype=int)
+    # 注意：這裡要確保跟訓練時的輸入格式一致。通常訓練時只看 0 和 1 (有無方塊)
+    clean_board = (raw_board == 2).astype(np.float32).flatten()
+    
+    if len(clean_board) != 200: return None
+
+    # 2. 準備 piece_id
+    shape_list = list(config.shapes.keys())
+    try: piece_id = shape_list.index(piece.shape)
+    except: piece_id = 0
+    
+    obs = np.concatenate(([piece_id], clean_board))
+
+    # 3. PPO 預測
+    try:
+        action, _ = model.predict(obs, deterministic=True)
+        action_id = action.item() if isinstance(action, np.ndarray) else action
+    except Exception as e:
+        print(f"PPO Predict Error: {e}")
         return None
 
-    # 1. 準備 observation (跟訓練時一樣：[piece_id, ...board...])
-    # 盤面轉成 0/1
-    board_np = (np.array(shot.status) == 2).astype(np.float32).flatten()
+    # 4. 解碼與物理修正
+    target_x, target_rot = decode_action(action_id)
     
-    shape_list = list(config.shapes.keys())
-    piece_id = shape_list.index(piece.shape)
+    # 建立模擬環境來測試這個動作是否合法
+    env = tetris_env.TetrisEnv()
+    env.board = (raw_board == 2).astype(int)
     
-    obs = np.concatenate(([piece_id], board_np))
-    
-    # 2. 預測動作
-    # predict 回傳 (action, state)，我們只要 action
-    # deterministic=True 代表不使用隨機探索，直接選機率最高的
-    action_id, _ = model.predict(obs, deterministic=True)
-    
-    # action_id 是一個 numpy array 或 int
-    if isinstance(action_id, np.ndarray):
-        action_id = action_id.item()
-        
-    # 3. 解碼
-    x, rot = decode_action(action_id)
-    
-    # 保護
-    if x < -2 or x > config.columns + 3:
-        return None
-        
-    return x, rot
+    sim_piece = copy.deepcopy(piece)
+    sim_piece.x = target_x
+    sim_piece.rotation = target_rot
+    sim_piece.y = 0 # 從頂部開始測試
+
+    # 測試目標位置是否合法
+    if not env._is_valid_position(env.board, sim_piece):
+        # 嘗試簡單的 Wall Kick (左右微調)
+        for offset in [0, -1, 1, -2, 2]:
+            sim_piece.x = target_x + offset
+            if env._is_valid_position(env.board, sim_piece):
+                target_x += offset
+                break
+        else:
+            # 所有嘗試都失敗，回傳 None
+            return None
+            
+    return target_x, target_rot
 
 # ------------------------------------------------------
-# 3. 遊戲主程式 (只修改 AI 部分)
+# 3. 輔助函式
 # ------------------------------------------------------
 
 def getRandomPiece():
     shape = random.choice(list(config.shapes.keys()))
-    return pieces.Piece(*init_start, shape)
+    piece = pieces.Piece(*init_start, shape)
+    return piece
 
-# (省略 draw_grid 和 draw_player_ui，這兩者與你原本的完全一樣)
 def draw_grid(surface, offset_x):
     grid_surface = pg.Surface((config.columns * config.grid, config.rows * config.grid), pg.SRCALPHA)
     color = (150, 150, 150, 60)
@@ -150,36 +173,49 @@ def draw_grid(surface, offset_x):
         pg.draw.line(grid_surface, color, (x * config.grid, 0), (x * config.grid, config.rows * config.grid))
     surface.blit(grid_surface, (offset_x, 0))
 
-def draw_player_ui(screen, shot, piece, next_piece, font, offset_x, score_pos, line_pos, next_piece_pos, garbage_bar_pos): 
+def draw_player_ui(screen, shot, piece, next_piece, font, offset_x, score_pos, line_pos, next_piece_pos, garbage_bar_pos):
+    # 繪製背景與固定方塊
     for y in range(config.rows):
         for x in range(config.columns):
-            if shot.status[y][x] != 2: shot.status[y][x] = 0
+            # 繪製背景格
+            pg.draw.rect(screen, shot.color[y][x], (offset_x + x * config.grid, y * config.grid, config.grid, config.grid))
+            # 繪製邊框
+            if shot.status[y][x] == 0:
+                pg.draw.rect(screen, (30, 30, 30), (offset_x + x * config.grid, y * config.grid, config.grid, config.grid), 1)
+
+    # 繪製當前移動中的方塊
     if not piece.is_fixed:
         for y, x in Handler.getCellsAbsolutePosition(piece):
             if 0 <= y < config.rows and 0 <= x < config.columns:
-                shot.color[y][x] = piece.color
-                shot.status[y][x] = 1
-    for y, line in enumerate(shot.color):
-        for x, color in enumerate(line):
-            draw_color = color if shot.status[y][x] != 0 else (0, 0, 0)
-            pg.draw.rect(screen, draw_color, (offset_x + x * config.grid, y * config.grid, config.grid, config.grid))
+                pg.draw.rect(screen, piece.color, (offset_x + x * config.grid, y * config.grid, config.grid, config.grid))
+
+    # 文字資訊
     textsurface = font.render(f'Score: {shot.score}', False, (255, 255, 255))
     screen.blit(textsurface, score_pos)
     textsurface = font.render(f'Line: {shot.line_count}', False, (255, 255, 255))
     screen.blit(textsurface, line_pos)
+
+    # Next Piece
     for y in range(-2, 3):
         for x in range(-2, 3):
             pg.draw.rect(screen, (50, 50, 50), (next_piece_pos[0] + x * config.grid, next_piece_pos[1] + y * config.grid, config.grid, config.grid))
     for y, x in next_piece.getCells():
         pg.draw.rect(screen, next_piece.color, (next_piece_pos[0] + x * config.grid, next_piece_pos[1] + y * config.grid, config.grid, config.grid))
+
+    # Garbage Bar
     if shot.pending_garbage > 0:
-        bar_h = config.height * 0.9 
+        bar_h = config.height * 0.9
         fill_ratio = min(shot.pending_garbage, 12) / 12.0
         fill_h = bar_h * fill_ratio
         bx, by = garbage_bar_pos[0], config.height * 0.05
         pg.draw.rect(screen, (80, 80, 80), (bx, by, config.GARBAGE_BAR_WIDTH, bar_h))
         pg.draw.rect(screen, (255, 50, 50), (bx, (by + bar_h) - fill_h, config.GARBAGE_BAR_WIDTH, fill_h))
+
     draw_grid(screen, offset_x)
+
+# ------------------------------------------------------
+# 4. 主程式
+# ------------------------------------------------------
 
 def main():
     pg.init()
@@ -189,56 +225,51 @@ def main():
     screen = pg.display.set_mode((config.width, config.height))
     pg.display.set_caption("Tetris 1v1: Human vs PPO Transformer")
 
-    # 載入 PPO 模型
-    ai_model = load_ppo_model()
+    ai_model = load_ai_model()
 
-    # 遊戲初始化
     shot1, piece1, next_piece1 = shots.Shot(), getRandomPiece(), getRandomPiece()
     shot2, piece2, next_piece2 = shots.Shot(), getRandomPiece(), getRandomPiece()
+
+    # 兩邊的自動下落計時器
     counter1 = 0
+    counter2 = 0
+    
     key_ticker1 = {pg.K_a: 0, pg.K_s: 0, pg.K_d: 0}
+    
     game_over1 = False
     game_over2 = False
-    
-    # AI First Move
-    if ai_model is not None and not game_over2:
+
+    # --- AI First Move Logic ---
+    # 遊戲一開始，先讓 AI 做一次決策，避免它發呆
+    if not game_over2 and ai_model is not None:
         move = get_ppo_move(ai_model, shot2, piece2)
         if move is not None:
+            # 如果有決策，就瞬間移動到位
             piece2.x, piece2.rotation = move
-        Handler.instantDrop(shot2, piece2)
-    
+            Handler.instantDrop(shot2, piece2)
+        else:
+            # 如果沒有決策，就讓它原地落下
+            print("AI Start Fallback: No move found, dropping.")
+            Handler.instantDrop(shot2, piece2)
+
     run = True
     while run:
-        # P1 Logic
+        # ---------------------------------------
+        # 1. Human Player (P1) Logic
+        # ---------------------------------------
         if not DEBUG and not game_over1:
             if counter1 == config.difficulty:
                 Handler.drop(shot1, piece1)
                 counter1 = 0
             else:
                 counter1 += 1
-
-        if not game_over1 and shot1.pending_garbage > 0:
-            shot1.garbage_insert_timer += 1
-            if shot1.garbage_insert_timer > config.GARBAGE_INSERT_DELAY:
-                lines = min(shot1.pending_garbage, config.GARBAGE_LINES_PER_INSERT)
-                Handler.insertGarbage(shot1, lines)
-                shot1.pending_garbage -= lines
-                shot1.garbage_insert_timer = 0
-                if Handler.isDefeat(shot1, piece1): game_over1 = True
-
-        if not game_over2 and shot2.pending_garbage > 0:
-            shot2.garbage_insert_timer += 1
-            if shot2.garbage_insert_timer > config.GARBAGE_INSERT_DELAY:
-                lines = min(shot2.pending_garbage, config.GARBAGE_LINES_PER_INSERT)
-                Handler.insertGarbage(shot2, lines)
-                shot2.pending_garbage -= lines
-                shot2.garbage_insert_timer = 0
-                if Handler.isDefeat(shot2, piece2): game_over2 = True
-
+        
+        # P1 Input Handling
         for event in pg.event.get():
             if event.type == pg.QUIT: run = False
             elif event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE: run = False
+                
                 if not game_over1:
                     if event.key == pg.K_w: Handler.rotate(shot1, piece1)
                     if event.key == pg.K_s: key_ticker1[pg.K_s] = 13; Handler.drop(shot1, piece1)
@@ -251,52 +282,101 @@ def main():
             if keys[pg.K_a] and key_ticker1[pg.K_a] == 0: key_ticker1[pg.K_a] = 6; Handler.moveLeft(shot1, piece1)
             if keys[pg.K_d] and key_ticker1[pg.K_d] == 0: key_ticker1[pg.K_d] = 6; Handler.moveRight(shot1, piece1)
             if keys[pg.K_s] and key_ticker1[pg.K_s] == 0: key_ticker1[pg.K_s] = 6; Handler.drop(shot1, piece1)
-        for k in key_ticker1: 
+        
+        for k in key_ticker1:
             if key_ticker1[k] > 0: key_ticker1[k] -= 1
 
+        # ---------------------------------------
+        # 2. AI Player (P2) Logic
+        # ---------------------------------------
+        
+        # [修正] AI 的自動下落 (Fallback)
+        # 如果 AI 卡住了，或者沒有執行 instantDrop，這裡確保方塊會因為重力掉下來
+        if not game_over2 and not piece2.is_fixed:
+            if counter2 == config.difficulty: # 這裡可以用更快的速度，例如 config.difficulty // 2
+                Handler.drop(shot2, piece2)
+                counter2 = 0
+            else:
+                counter2 += 1
+
+        # ---------------------------------------
+        # 3. Game State Updates
+        # ---------------------------------------
+
+        # Garbage Timer
+        for shot, p, go in [(shot1, piece1, game_over1), (shot2, piece2, game_over2)]:
+            if not go and shot.pending_garbage > 0:
+                shot.garbage_insert_timer += 1
+                if shot.garbage_insert_timer > config.GARBAGE_INSERT_DELAY:
+                    lines = min(shot.pending_garbage, config.GARBAGE_LINES_PER_INSERT)
+                    Handler.insertGarbage(shot, lines)
+                    shot.pending_garbage -= lines
+                    shot.garbage_insert_timer = 0
+
+        # P1 Line Clear & New Piece
         if not game_over1 and piece1.is_fixed:
             clears, all_clear = Handler.eliminateFilledRows(shot1, piece1)
             atk1 = Handler.calculateAttack(clears, shot1.combo_count, shot1.is_b2b, all_clear)
             if clears > 0: shot1.combo_count += 1; shot1.is_b2b = (clears == 4)
             else: shot1.combo_count = 0
+            
             if atk1 > 0:
                 cancel = min(atk1, shot1.pending_garbage)
                 shot1.pending_garbage -= cancel
                 atk1 -= cancel
                 shot2.pending_garbage += atk1
+            
             piece1, next_piece1 = next_piece1, getRandomPiece()
-            if Handler.isDefeat(shot1, piece1): game_over1 = True
+            if Handler.isDefeat(shot1, piece1):
+                game_over1 = True
+                print("P1 Game Over")
 
-        # P2 Update (AI)
-        if not game_over2 and piece2.is_fixed: 
+        # P2 Line Clear & New Piece
+        if not game_over2 and piece2.is_fixed:
             clears, all_clear = Handler.eliminateFilledRows(shot2, piece2)
             atk2 = Handler.calculateAttack(clears, shot2.combo_count, shot2.is_b2b, all_clear)
             if clears > 0: shot2.combo_count += 1; shot2.is_b2b = (clears == 4)
             else: shot2.combo_count = 0
+            
             if atk2 > 0:
                 cancel = min(atk2, shot2.pending_garbage)
                 shot2.pending_garbage -= cancel
                 atk2 -= cancel
                 shot1.pending_garbage += atk2
-            piece2, next_piece2 = next_piece2, getRandomPiece()
-            if Handler.isDefeat(shot2, piece2): game_over2 = True; print("P2 Game Over")
-            
-            # AI 思考
-            if not game_over2 and ai_model is not None:
-                move = get_ppo_move(ai_model, shot2, piece2)
-                if move is not None:
-                    piece2.x, piece2.rotation = move
-                Handler.instantDrop(shot2, piece2)
 
-        if game_over1 and game_over2: run = False
-        
+            piece2, next_piece2 = next_piece2, getRandomPiece()
+            
+            # 檢查生成後是否立刻死亡
+            if Handler.isDefeat(shot2, piece2):
+                game_over2 = True
+                print("P2 Game Over")
+            else:
+                # 只要沒死，AI 就要做決策
+                if ai_model is not None:
+                    move = get_ppo_move(ai_model, shot2, piece2)
+                    if move is not None:
+                        # 決策成功：執行動作並落下
+                        piece2.x, piece2.rotation = move
+                        Handler.instantDrop(shot2, piece2)
+                    else:
+                        # 決策失敗 (None)：讓它原地落下
+                        # 這樣可以避免卡在空中，至少遊戲會繼續進行
+                        print("AI Move Failed, falling naturally.")
+                        Handler.instantDrop(shot2, piece2) 
+
+        if game_over1 and game_over2:
+            run = False
+
         screen.fill(config.background_color)
         if not game_over1: draw_player_ui(screen, shot1, piece1, next_piece1, myfont, config.P1_OFFSET_X, config.P1_SCORE_POS, config.P1_LINE_POS, config.P1_NEXT_PIECE_POS, config.P1_GARBAGE_BAR_POS)
         if not game_over2: draw_player_ui(screen, shot2, piece2, next_piece2, myfont, config.P2_OFFSET_X, config.P2_SCORE_POS, config.P2_LINE_POS, config.P2_NEXT_PIECE_POS, config.P2_GARBAGE_BAR_POS)
-
+        
         pg.display.update()
         fpsClock.tick(config.fps)
-    
+
+    print("----- Final Result -----")
+    print(f"P1 Score: {shot1.score} | Lines: {shot1.line_count}")
+    print(f"P2 Score: {shot2.score} | Lines: {shot2.line_count}")
     pg.quit()
 
 if __name__ == "__main__":
