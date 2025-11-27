@@ -987,13 +987,56 @@ def lan_menu(screen, font):
                                 clock.tick(30)
                             
                         elif btn.action_code == "JOIN":
-                            screen.fill(config.background_color)
-                            wait_surf = font.render(f"Connecting to {ip_text}...", True, (255, 255, 255))
-                            screen.blit(wait_surf, (config.width//2 - 150, config.height//2))
-                            pg.display.update()
+                            # Start joining in a separate thread
+                            join_thread = threading.Thread(target=net_mgr.join_game, args=(ip_text,), daemon=True)
+                            join_thread.start()
                             
-                            if net_mgr.join_game(ip_text):
-                                return "LAN", net_mgr
+                            waiting = True
+                            clock = pg.time.Clock()
+                            
+                            while waiting:
+                                # 1. Check connection success
+                                if net_mgr.connected:
+                                    return "LAN", net_mgr
+                                
+                                # 2. Check if thread finished (failed)
+                                if not join_thread.is_alive():
+                                    waiting = False
+                                    # Show error
+                                    err_start = pg.time.get_ticks()
+                                    while pg.time.get_ticks() - err_start < 1500:
+                                        screen.fill(config.background_color)
+                                        err_surf = font.render("Connection Failed!", True, (255, 50, 50))
+                                        screen.blit(err_surf, err_surf.get_rect(center=(config.width//2, config.height//2)))
+                                        pg.display.update()
+                                        pg.event.pump()
+                                    
+                                    # Reset manager for next try
+                                    net_mgr = network_utils.NetworkManager()
+                                
+                                # 3. Handle Events
+                                for e in pg.event.get():
+                                    if e.type == pg.QUIT:
+                                        net_mgr.close()
+                                        pg.quit(); sys.exit()
+                                    if e.type == pg.KEYDOWN and e.key == pg.K_ESCAPE:
+                                        net_mgr.close()
+                                        waiting = False
+                                        net_mgr = network_utils.NetworkManager()
+                                
+                                # 4. Draw Waiting Screen
+                                screen.fill(config.background_color)
+                                txt1 = font.render(f"Connecting to {ip_text}...", True, (255, 255, 255))
+                                txt2 = font.render("Press ESC to Cancel", True, (150, 150, 150))
+                                
+                                r1 = txt1.get_rect(center=(config.width//2, config.height//2))
+                                r2 = txt2.get_rect(center=(config.width//2, config.height//2 + 60))
+                                
+                                screen.blit(txt1, r1)
+                                screen.blit(txt2, r2)
+                                
+                                pg.display.update()
+                                clock.tick(30)
             
             if event.type == pg.KEYDOWN:
                 if input_active:
