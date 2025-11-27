@@ -309,6 +309,39 @@ def draw_player_ui(screen, shot, piece, next_piece, font,
         pg.draw.rect(screen, bar_color, (bar_x, bar_y_fill, config.GARBAGE_BAR_WIDTH, bar_height))
         pg.draw.rect(screen, (200, 200, 200), (bar_x, bar_y_start, config.GARBAGE_BAR_WIDTH, bar_max_height), 1)
 
+    # [NEW] Tetris Effect
+    if getattr(shot, 'tetris_timer', 0) > 0:
+        effect_font = pg.font.SysFont('Comic Sans MS', 60, bold=True)
+        txt = "TETRIS!"
+        
+        # 製作中空字體 (Hollow Text)
+        # 1. 產生白色底圖 (作為邊框)
+        base_surf = effect_font.render(txt, True, (255, 255, 255))
+        # 2. 產生黑色內文 (用來挖空)
+        inner_surf = effect_font.render(txt, True, (0, 0, 0))
+        
+        # 3. 建立容器
+        w, h = base_surf.get_size()
+        outline_surf = pg.Surface((w + 4, h + 4), pg.SRCALPHA)
+        
+        # 4. 在四個角落繪製白色底圖 (偏移 1 pixel 形成細線)
+        offsets = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
+        for ox, oy in offsets:
+            outline_surf.blit(base_surf, (ox + 2, oy + 2))
+            
+        # 5. 在中心挖空 (使用 SUB 模式扣除 Alpha)
+        # inner_surf 是黑色 (0,0,0)，Alpha 隨字體反鋸齒變化
+        # SUB 模式: (R,G,B,A) - (0,0,0,A_in) = (R,G,B, A - A_in)
+        outline_surf.blit(inner_surf, (2, 2), special_flags=pg.BLEND_RGBA_SUB)
+        
+        # 6. 設定整體透明度 (淡出效果)
+        alpha = int(min(255, shot.tetris_timer * 8))
+        outline_surf.set_alpha(alpha)
+        
+        text_rect = outline_surf.get_rect(center=(offset_x + (config.columns * config.grid) // 2, 
+                                               offset_y + (config.rows * config.grid) // 3))
+        screen.blit(outline_surf, text_rect)
+
 # --- 設定選單 ---
 
 def settings_menu(screen):
@@ -390,6 +423,7 @@ def run_game(screen, clock, font, mode, ai_mode=None):
     """
     # --- P1 Initialization (人類玩家) ---
     shot1 = shots.Shot()
+    shot1.tetris_timer = 0
     piece1 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
     next_piece1 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
     counter1 = 0
@@ -401,6 +435,7 @@ def run_game(screen, clock, font, mode, ai_mode=None):
     piece2 = None
     next_piece2 = None
     game_over2 = False
+    winner_name = None # 紀錄獲勝者
     
     # AI 相關變數
     ai_nn = None
@@ -413,6 +448,7 @@ def run_game(screen, clock, font, mode, ai_mode=None):
 
     if mode in ['PVP', 'PVE']:
         shot2 = shots.Shot()
+        shot2.tetris_timer = 0
         piece2 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
         next_piece2 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
 
@@ -545,6 +581,7 @@ def run_game(screen, clock, font, mode, ai_mode=None):
         # --- Game Logic: P1 Check ---
         if not game_over1 and piece1.is_fixed:
             clears, all_clear = Handler.eliminateFilledRows(shot1, piece1)
+            if clears == 4: shot1.tetris_timer = 60
             atk1 = 0
             if mode != 'SOLO':
                 is_power_move = (clears == 4)
@@ -568,7 +605,10 @@ def run_game(screen, clock, font, mode, ai_mode=None):
             piece1 = next_piece1
             next_piece1 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
 
-            if Handler.isDefeat(shot1, piece1): game_over1 = True
+            if Handler.isDefeat(shot1, piece1): 
+                game_over1 = True
+                if mode != 'SOLO' and winner_name is None:
+                    winner_name = "AI Wins!" if mode == 'PVE' else "Player 2 Wins!"
 
         # --- Game Logic: P2 Check ---
         if mode != 'SOLO' and not game_over2 and piece2.is_fixed:
@@ -576,6 +616,7 @@ def run_game(screen, clock, font, mode, ai_mode=None):
             if mode == 'PVE': ai_target_move = None; ai_think_timer = 0
             
             clears, all_clear = Handler.eliminateFilledRows(shot2, piece2)
+            if clears == 4: shot2.tetris_timer = 60
             atk2 = 0
             
             is_power_move = (clears == 4)
@@ -599,23 +640,43 @@ def run_game(screen, clock, font, mode, ai_mode=None):
             piece2 = next_piece2
             next_piece2 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
 
-            if Handler.isDefeat(shot2, piece2): game_over2 = True
+            if Handler.isDefeat(shot2, piece2): 
+                game_over2 = True
+                if mode != 'SOLO' and winner_name is None:
+                    winner_name = "Player 1 Wins!"
 
         # --- 勝負判定 ---
         if mode == 'SOLO':
             if game_over1:
                 return "GAME_OVER", {"winner": "Solo Finish", "score": shot1.score, "lines": shot1.line_count}
         else:
-            if game_over1:
-                return "GAME_OVER", {"winner": "Player 2 Wins!", "score": shot1.score, "lines": shot1.line_count}
-            if game_over2:
-                return "GAME_OVER", {"winner": "Player 1 Wins!", "score": shot1.score, "lines": shot1.line_count}
+            # 修改: 必須兩者都 Game Over 才結束
+            if game_over1 and game_over2:
+                final_winner = winner_name if winner_name else "Draw"
+                # 顯示獲勝者的分數 (或是 P1 的分數，視需求而定)
+                winning_score = shot1.score
+                if "Player 2" in final_winner or "AI" in final_winner:
+                    winning_score = shot2.score
+                
+                return "GAME_OVER", {"winner": final_winner, "score": winning_score, "lines": shot1.line_count}
 
         # --- 畫面更新 ---
+        if getattr(shot1, 'tetris_timer', 0) > 0: shot1.tetris_timer -= 1
+        if shot2 and getattr(shot2, 'tetris_timer', 0) > 0: shot2.tetris_timer -= 1
+        
         screen.fill(config.background_color)
         
         # 繪製 P1
         draw_player_ui(screen, shot1, piece1, next_piece1, font, p1_draw_x, None, None, None, None, "Player 1")
+        if game_over1:
+            # 繪製 Game Over 遮罩
+            s = pg.Surface((config.columns * config.grid, config.rows * config.grid))
+            s.set_alpha(150)
+            s.fill((0,0,0))
+            screen.blit(s, (p1_draw_x, 0))
+            text = font.render("GAME OVER", True, (255, 50, 50))
+            text_rect = text.get_rect(center=(p1_draw_x + (config.columns * config.grid)//2, (config.rows * config.grid)//2))
+            screen.blit(text, text_rect)
         
         # 繪製 P2
         if mode != 'SOLO':
@@ -625,6 +686,15 @@ def run_game(screen, clock, font, mode, ai_mode=None):
                 p2_name = "AI (DQN)" if ai_mode == 'DQN' else "AI (Heuristic)"
                 
             draw_player_ui(screen, shot2, piece2, next_piece2, font, p2_draw_x, None, None, None, None, p2_name)
+            if game_over2:
+                # 繪製 Game Over 遮罩
+                s = pg.Surface((config.columns * config.grid, config.rows * config.grid))
+                s.set_alpha(150)
+                s.fill((0,0,0))
+                screen.blit(s, (p2_draw_x, 0))
+                text = font.render("GAME OVER", True, (255, 50, 50))
+                text_rect = text.get_rect(center=(p2_draw_x + (config.columns * config.grid)//2, (config.rows * config.grid)//2))
+                screen.blit(text, text_rect)
 
         pg.display.update()
         clock.tick(config.fps)
