@@ -2,6 +2,8 @@ import pygame as pg
 import sys
 import copy
 import random
+import threading
+import socket
 
 # 引用模組
 import config
@@ -907,11 +909,15 @@ def lan_menu(screen, font):
         color = (255, 255, 255) if input_active else (150, 150, 150)
         pg.draw.rect(screen, color, input_rect, 2)
         text_surface = font.render(ip_text, True, (255, 255, 255))
-        screen.blit(text_surface, (input_rect.x + 5, input_rect.y + 5))
+        
+        # Center text vertically
+        text_rect = text_surface.get_rect(midleft=(input_rect.x + 10, input_rect.centery))
+        screen.blit(text_surface, text_rect)
         
         # Label for Input
         label_surf = font.render("Host IP:", True, (200, 200, 200))
-        screen.blit(label_surf, (input_rect.x - 100, input_rect.y + 5))
+        label_rect = label_surf.get_rect(midright=(input_rect.x - 10, input_rect.centery))
+        screen.blit(label_surf, label_rect)
         
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -928,14 +934,57 @@ def lan_menu(screen, font):
                         if btn.action_code == "BACK":
                             return None, None
                         elif btn.action_code == "HOST":
-                            # Show waiting screen
-                            screen.fill(config.background_color)
-                            wait_surf = font.render("Waiting for connection...", True, (255, 255, 255))
-                            screen.blit(wait_surf, (config.width//2 - 150, config.height//2))
-                            pg.display.update()
+                            # Show waiting screen with non-blocking loop
+                            try:
+                                hostname = socket.gethostname()
+                                local_ip = socket.gethostbyname(hostname)
+                            except:
+                                local_ip = "Unknown"
+
+                            # Start hosting in a separate thread
+                            host_thread = threading.Thread(target=net_mgr.host_game, daemon=True)
+                            host_thread.start()
                             
-                            if net_mgr.host_game():
-                                return "LAN", net_mgr
+                            waiting = True
+                            clock = pg.time.Clock()
+                            
+                            while waiting:
+                                # 1. Check connection success
+                                if net_mgr.connected:
+                                    return "LAN", net_mgr
+                                
+                                # 2. Check if thread died (error)
+                                if not host_thread.is_alive():
+                                    waiting = False
+                                
+                                # 3. Handle Events
+                                for e in pg.event.get():
+                                    if e.type == pg.QUIT:
+                                        net_mgr.close()
+                                        pg.quit(); sys.exit()
+                                    if e.type == pg.KEYDOWN and e.key == pg.K_ESCAPE:
+                                        net_mgr.close()
+                                        waiting = False
+                                        # Re-create manager for next attempt
+                                        net_mgr = network_utils.NetworkManager()
+                                
+                                # 4. Draw Waiting Screen
+                                screen.fill(config.background_color)
+                                
+                                txt1 = font.render("Waiting for connection...", True, (255, 255, 255))
+                                txt2 = font.render(f"Your IP: {local_ip}", True, (255, 215, 0))
+                                txt3 = font.render("Press ESC to Cancel", True, (150, 150, 150))
+                                
+                                r1 = txt1.get_rect(center=(config.width//2, config.height//2 - 50))
+                                r2 = txt2.get_rect(center=(config.width//2, config.height//2 + 20))
+                                r3 = txt3.get_rect(center=(config.width//2, config.height//2 + 100))
+                                
+                                screen.blit(txt1, r1)
+                                screen.blit(txt2, r2)
+                                screen.blit(txt3, r3)
+                                
+                                pg.display.update()
+                                clock.tick(30)
                             
                         elif btn.action_code == "JOIN":
                             screen.fill(config.background_color)
