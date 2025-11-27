@@ -8,7 +8,11 @@ import config
 import pieces
 import shots
 import Handler
-
+import numpy as np
+try:
+    import tetris_env
+except ImportError:
+    print("Warning: tetris_env.py not found. Heuristic AI might fail.")
 # 嘗試匯入 AI
 try:
     from ai_player_nn import AIPlayerNN
@@ -71,6 +75,121 @@ def get_ghost_piece(shot, piece):
     return ghost
 
 # --- 繪圖輔助 ---
+
+# --- [新增] 移植自 main_2p.py 的啟發式 AI 核心 ---
+
+# 特徵權重 (這就是 AI 的性格參數)
+BEST_WEIGHTS = np.array([-1.41130507, -2.23926392, -0.78272467, -4.00369693, -0.67902086, -0.449347,
+                         -0.1623215, -0.91940282])
+
+def get_tetris_features_v8(board):
+    """ 計算盤面特徵 (AI 的眼睛) """
+    grid = (np.array(board) == 2).astype(int)
+    rows, cols = grid.shape
+    
+    # 1. Landing Height
+    row_indices = np.arange(rows, 0, -1).reshape(-1, 1)
+    height_grid = grid * row_indices
+    col_heights = np.max(height_grid, axis=0)
+    landing_height = np.mean(col_heights)
+    
+    # 2. Row Transitions
+    row_trans = 0
+    for r in range(rows):
+        line = np.insert(grid[r], [0, cols], 1)
+        row_trans += np.sum(np.abs(np.diff(line)))
+        
+    # 3. Column Transitions
+    col_trans = 0
+    for c in range(cols):
+        col = np.insert(grid[:, c], [0, rows], [0, 1])
+        col_trans += np.sum(np.abs(np.diff(col)))
+        
+    # 4. Holes
+    cumsum = np.cumsum(grid, axis=0)
+    holes = np.sum((cumsum > 0) & (grid == 0))
+    
+    # 5. Well Analysis
+    well_depths = []
+    for c in range(cols):
+        if c == 0: left_wall = np.ones(rows)
+        else: left_wall = grid[:, c-1]
+        if c == cols-1: right_wall = np.ones(rows)
+        else: right_wall = grid[:, c+1]
+        mid = grid[:, c]
+        is_well = (left_wall == 1) & (right_wall == 1) & (mid == 0)
+        depth = 0
+        for r in range(rows):
+            if is_well[r]: depth += 1
+            else:
+                if depth > 0: well_depths.append(depth)
+                depth = 0
+        if depth > 0: well_depths.append(depth)
+        
+    well_sums = sum(well_depths)
+    deep_wells = sum([d for d in well_depths if d >= 3])
+    cum_wells = sum([d*(d+1)/2 for d in well_depths])
+    max_height = np.max(col_heights) if len(col_heights) > 0 else 0
+    
+    features = np.array([landing_height, row_trans, col_trans, holes, well_sums, deep_wells, cum_wells, max_height], dtype=np.float32)
+    
+    # 正規化
+    features[0] /= 10.0
+    features[1] /= 100.0
+    features[2] /= 100.0
+    features[3] /= 40.0
+    features[4] /= 40.0
+    features[5] /= 40.0
+    features[6] /= 100.0
+    features[7] /= 20.0
+    return features
+
+def get_ai_move_heuristic(shot, piece):
+    """ 思考最佳移動路徑 (AI 的大腦) """
+    # 建立模擬環境
+    env = tetris_env.TetrisEnv()
+    env.board = np.array(shot.status, dtype=int)
+    env.current_piece = copy.deepcopy(piece)
+    
+    possible_moves = {}
+    piece_ref = env.current_piece
+    num_rotations = len(config.shapes[piece_ref.shape])
+    
+    # 窮舉所有可能的落點
+    for rot in range(num_rotations):
+        for x in range(-2, config.columns + 1):
+            sim_piece = copy.deepcopy(piece_ref)
+            sim_piece.rotation = rot
+            sim_piece.x = x
+            sim_piece.y = 0
+            
+            if not env._is_valid_position(env.board, sim_piece):
+                continue
+                
+            while env._is_valid_position(env.board, sim_piece, adj_x=0, adj_y=1):
+                sim_piece.y += 1
+            
+            temp_board = env.board.copy()
+            env._lock_piece(temp_board, sim_piece)
+            possible_moves[(x, rot)] = temp_board
+            
+    if not possible_moves:
+        return None
+        
+    best_score = -float('inf')
+    best_move = None
+    
+    # 評估每個落點的分數
+    for move, board_state in possible_moves.items():
+        features = get_tetris_features_v8(board_state)
+        score = np.dot(BEST_WEIGHTS, features)
+        if score > best_score:
+            best_score = score
+            best_move = move
+            
+    return best_move
+# -------------------------------------------
+
 
 def draw_grid(surface, offset_x):
     grid_surface = pg.Surface(
@@ -264,44 +383,54 @@ def pause_menu(screen):
         pg.display.update()
 
 # --- 核心遊戲流程 ---
-
-def run_game(screen, clock, font, mode):
-    
-    # P1 Initialization
+def run_game(screen, clock, font, mode, ai_mode=None):
+    """
+    核心遊戲迴圈
+    參數 ai_mode: 當 mode='PVE' 時，指定 'DQN' 或 'HEURISTIC'
+    """
+    # --- P1 Initialization (人類玩家) ---
     shot1 = shots.Shot()
     piece1 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
     next_piece1 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
     counter1 = 0
     key_ticker1 = {pg.K_a: 0, pg.K_s: 0, pg.K_d: 0}
     game_over1 = False
-    
-    # P2 Initialization
+
+    # --- P2 Initialization (對手：人類 P2 或 AI) ---
     shot2 = None
     piece2 = None
     next_piece2 = None
     game_over2 = False
     
+    # AI 相關變數
     ai_nn = None
-    ai_target_move = None 
-    ai_timer = 0           
-    ai_think_timer = 0     
-    counter2 = 0           
-    key_ticker2 = {pg.K_LEFT: 0, pg.K_DOWN: 0, pg.K_RIGHT: 0} 
-    
+    ai_target_move = None
+    ai_timer = 0
+    ai_think_timer = 0
+
+    counter2 = 0
+    key_ticker2 = {pg.K_LEFT: 0, pg.K_DOWN: 0, pg.K_RIGHT: 0}
+
     if mode in ['PVP', 'PVE']:
         shot2 = shots.Shot()
         piece2 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
         next_piece2 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
-        if mode == 'PVE' and AI_AVAILABLE:
+
+        # 如果是 PVE 且選擇了 DQN 模式，嘗試載入模型
+        if mode == 'PVE' and ai_mode == 'DQN' and AI_AVAILABLE:
             try:
                 ai_nn = AIPlayerNN(model_path='tetris_dqn_new.pt')
+                print("AI: Loaded DQN Model")
             except:
-                print("Failed to load AI model")
-                ai_nn = AIPlayerNN() 
+                print("Failed to load AI model, fallback to random")
+                ai_nn = AIPlayerNN()
+        elif mode == 'PVE' and ai_mode == 'HEURISTIC':
+             print("AI: Using Heuristic (Expert) Mode")
 
-    # SOLO 模式置中
+    # --- 畫面位置計算 ---
     p1_draw_x = config.P1_OFFSET_X
     p2_draw_x = config.P2_OFFSET_X
+
     if mode == 'SOLO':
         total_width = config.GARBAGE_BAR_WIDTH + (config.columns * config.grid) + config.INFO_PANEL_WIDTH
         p1_draw_x = (config.width - total_width) // 2 + config.GARBAGE_BAR_WIDTH
@@ -310,23 +439,28 @@ def run_game(screen, clock, font, mode):
     paused = False
 
     while running:
+        # --- 暫停處理 ---
         if paused:
             action = pause_menu(screen)
             if action == "RESUME": paused = False; clock.tick(); continue
             elif action == "RESTART": return "RESTART"
             elif action == "MENU": return "MENU"
 
+        # --- 事件處理 ---
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
             elif event.type == pg.KEYDOWN:
-                if event.key == pg.K_ESCAPE: paused = True 
+                if event.key == pg.K_ESCAPE: paused = True
+                
+                # P1 Controls
                 if not game_over1:
                     if event.key == pg.K_w: Handler.rotate(shot1, piece1)
                     if event.key == pg.K_s: key_ticker1[pg.K_s] = 13; Handler.drop(shot1, piece1)
                     if event.key == pg.K_a: key_ticker1[pg.K_a] = 13; Handler.moveLeft(shot1, piece1)
                     if event.key == pg.K_d: key_ticker1[pg.K_d] = 13; Handler.moveRight(shot1, piece1)
                     if event.key == pg.K_LSHIFT: Handler.instantDrop(shot1, piece1)
-
+                
+                # P2 Controls (Human only)
                 if mode == 'PVP' and not game_over2:
                     if event.key == pg.K_UP: Handler.rotate(shot2, piece2)
                     if event.key == pg.K_DOWN: key_ticker2[pg.K_DOWN] = 13; Handler.drop(shot2, piece2)
@@ -334,53 +468,81 @@ def run_game(screen, clock, font, mode):
                     if event.key == pg.K_RIGHT: key_ticker2[pg.K_RIGHT] = 13; Handler.moveRight(shot2, piece2)
                     if event.key == pg.K_RSHIFT: Handler.instantDrop(shot2, piece2)
 
+        # --- 按鍵持續按壓處理 (DAS) ---
         keys = pg.key.get_pressed()
         if not game_over1:
             if keys[pg.K_a] and key_ticker1[pg.K_a] == 0: key_ticker1[pg.K_a] = 6; Handler.moveLeft(shot1, piece1)
             if keys[pg.K_d] and key_ticker1[pg.K_d] == 0: key_ticker1[pg.K_d] = 6; Handler.moveRight(shot1, piece1)
             if keys[pg.K_s] and key_ticker1[pg.K_s] == 0: key_ticker1[pg.K_s] = 6; Handler.drop(shot1, piece1)
-        for k in key_ticker1: 
-            if key_ticker1[k] > 0: key_ticker1[k] -= 1
+            for k in key_ticker1:
+                if key_ticker1[k] > 0: key_ticker1[k] -= 1
 
         if mode == 'PVP' and not game_over2:
             if keys[pg.K_LEFT] and key_ticker2[pg.K_LEFT] == 0: key_ticker2[pg.K_LEFT] = 6; Handler.moveLeft(shot2, piece2)
             if keys[pg.K_RIGHT] and key_ticker2[pg.K_RIGHT] == 0: key_ticker2[pg.K_RIGHT] = 6; Handler.moveRight(shot2, piece2)
             if keys[pg.K_DOWN] and key_ticker2[pg.K_DOWN] == 0: key_ticker2[pg.K_DOWN] = 6; Handler.drop(shot2, piece2)
-        for k in key_ticker2:
-            if key_ticker2[k] > 0: key_ticker2[k] -= 1
+            for k in key_ticker2:
+                if key_ticker2[k] > 0: key_ticker2[k] -= 1
 
+        # --- AI Logic (PVE Mode) ---
         if mode == 'PVE' and not game_over2:
             if ai_target_move is None:
-                if ai_think_timer < AI_THINKING_DELAY: ai_think_timer += 1
+                # 思考延遲模擬
+                if ai_think_timer < AI_THINKING_DELAY:
+                    ai_think_timer += 1
                 else:
-                    if ai_nn:
+                    # === 決定使用哪個大腦 ===
+                    if ai_mode == 'DQN' and ai_nn:
+                        # 使用神經網路
                         ai_target_move = ai_nn.find_best_move(copy.deepcopy(shot2), copy.deepcopy(piece2), copy.deepcopy(next_piece2))
-                        if ai_target_move is None: ai_target_move = (piece2.x, piece2.rotation)
+                    elif ai_mode == 'HEURISTIC':
+                        # 使用啟發式演算法 (from main_2p.py)
+                        ai_target_move = get_ai_move_heuristic(shot2, piece2)
                     else:
+                        # 無 AI 時的隨機移動
                         ai_target_move = (random.randint(0, config.columns-3), random.randint(0, 3))
+
+                    # 若 AI 放棄思考 (None)，保持原位
+                    if ai_target_move is None: 
+                        ai_target_move = (piece2.x, piece2.rotation)
+                    
                     ai_think_timer = 0
             else:
+                # 執行移動 (逐步移動到目標位置)
                 target_x, target_r = ai_target_move
                 aligned = (piece2.x == target_x) and (piece2.rotation == target_r)
+                
                 if ai_timer >= AI_MOVE_DELAY:
                     ai_timer = 0
-                    if piece2.rotation != target_r: Handler.rotate(shot2, piece2)
-                    elif piece2.x < target_x: Handler.moveRight(shot2, piece2)
-                    elif piece2.x > target_x: Handler.moveLeft(shot2, piece2)
-                else: ai_timer += 1
+                    if piece2.rotation != target_r:
+                        Handler.rotate(shot2, piece2)
+                    elif piece2.x < target_x:
+                        Handler.moveRight(shot2, piece2)
+                    elif piece2.x > target_x:
+                        Handler.moveLeft(shot2, piece2)
+                else:
+                    ai_timer += 1
+                
+                # 自動下落
                 drop_threshold = config.difficulty
-                if aligned: drop_threshold = max(2, config.difficulty // 8) 
-                if counter2 >= drop_threshold: Handler.drop(shot2, piece2); counter2 = 0
-                else: counter2 += 1
-        
+                if aligned: drop_threshold = max(2, config.difficulty // 8) # 到位後加速下落
+                
+                if counter2 >= drop_threshold:
+                    Handler.drop(shot2, piece2)
+                    counter2 = 0
+                else:
+                    counter2 += 1
+
+        # --- Gravity (自動下落) ---
         if not game_over1:
             if counter1 >= config.difficulty: Handler.drop(shot1, piece1); counter1 = 0
             else: counter1 += 1
+
         if mode == 'PVP' and not game_over2:
             if counter2 >= config.difficulty: Handler.drop(shot2, piece2); counter2 = 0
             else: counter2 += 1
 
-        # P1 Check
+        # --- Game Logic: P1 Check ---
         if not game_over1 and piece1.is_fixed:
             clears, all_clear = Handler.eliminateFilledRows(shot1, piece1)
             atk1 = 0
@@ -389,59 +551,81 @@ def run_game(screen, clock, font, mode):
                 shot1.combo_count = shot1.combo_count + 1 if clears > 0 else 0
                 atk1 = Handler.calculateAttack(clears, shot1.combo_count, shot1.is_b2b, all_clear)
                 shot1.is_b2b = is_power_move if is_power_move else (False if clears > 0 else shot1.is_b2b)
+
                 if atk1 > 0 and shot1.pending_garbage > 0:
                     cancel = min(atk1, shot1.pending_garbage)
                     shot1.pending_garbage -= cancel
                     atk1 -= cancel
+
             if clears == 0 and shot1.pending_garbage > 0:
                 Handler.insertGarbage(shot1, shot1.pending_garbage)
                 shot1.pending_garbage = 0
                 shot1.shake_timer = 20
+            
             if mode != 'SOLO' and atk1 > 0:
                 shot2.pending_garbage += atk1
+
             piece1 = next_piece1
             next_piece1 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
+
             if Handler.isDefeat(shot1, piece1): game_over1 = True
 
-        # P2 Check
+        # --- Game Logic: P2 Check ---
         if mode != 'SOLO' and not game_over2 and piece2.is_fixed:
+            # 方塊落地後，重置 AI 思考
             if mode == 'PVE': ai_target_move = None; ai_think_timer = 0
+            
             clears, all_clear = Handler.eliminateFilledRows(shot2, piece2)
             atk2 = 0
+            
             is_power_move = (clears == 4)
             shot2.combo_count = shot2.combo_count + 1 if clears > 0 else 0
             atk2 = Handler.calculateAttack(clears, shot2.combo_count, shot2.is_b2b, all_clear)
             shot2.is_b2b = is_power_move if is_power_move else (False if clears > 0 else shot2.is_b2b)
+
             if atk2 > 0 and shot2.pending_garbage > 0:
                 cancel = min(atk2, shot2.pending_garbage)
                 shot2.pending_garbage -= cancel
                 atk2 -= cancel
+
             if clears == 0 and shot2.pending_garbage > 0:
                 Handler.insertGarbage(shot2, shot2.pending_garbage)
                 shot2.pending_garbage = 0
                 shot2.shake_timer = 20
+
             if atk2 > 0:
                 shot1.pending_garbage += atk2
+
             piece2 = next_piece2
             next_piece2 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
+
             if Handler.isDefeat(shot2, piece2): game_over2 = True
 
-        # 遊戲結束
+        # --- 勝負判定 ---
         if mode == 'SOLO':
-            if game_over1: 
+            if game_over1:
                 return "GAME_OVER", {"winner": "Solo Finish", "score": shot1.score, "lines": shot1.line_count}
         else:
-            if game_over1: 
+            if game_over1:
                 return "GAME_OVER", {"winner": "Player 2 Wins!", "score": shot1.score, "lines": shot1.line_count}
-            if game_over2: 
+            if game_over2:
                 return "GAME_OVER", {"winner": "Player 1 Wins!", "score": shot1.score, "lines": shot1.line_count}
 
+        # --- 畫面更新 ---
         screen.fill(config.background_color)
-        draw_player_ui(screen, shot1, piece1, next_piece1, font, p1_draw_x, None, None, None, None, "Player 1")
-        if mode != 'SOLO':
-            p2_name = "AI Bot" if mode == 'PVE' else "Player 2"
-            draw_player_ui(screen, shot2, piece2, next_piece2, font, p2_draw_x, None, None, None, None, p2_name)
         
+        # 繪製 P1
+        draw_player_ui(screen, shot1, piece1, next_piece1, font, p1_draw_x, None, None, None, None, "Player 1")
+        
+        # 繪製 P2
+        if mode != 'SOLO':
+            # 根據模式顯示名字
+            p2_name = "Player 2"
+            if mode == 'PVE':
+                p2_name = "AI (DQN)" if ai_mode == 'DQN' else "AI (Heuristic)"
+                
+            draw_player_ui(screen, shot2, piece2, next_piece2, font, p2_draw_x, None, None, None, None, p2_name)
+
         pg.display.update()
         clock.tick(config.fps)
 
@@ -472,6 +656,45 @@ def main_menu(screen, font):
                 if btn.is_clicked(event): return btn.action_code
         for btn in buttons: btn.draw(screen)
         pg.display.update()
+
+# --- [新增] AI 選擇選單 ---
+def ai_selection_menu(screen, font):
+    pg.display.set_caption("Select AI Opponent")
+    
+    btn_w, btn_h = 320, 60
+    center_x = config.width // 2 - btn_w // 2
+    start_y = config.height // 3
+    
+    # 定義三個按鈕
+    btn_dqn = Button(center_x, start_y, btn_w, btn_h, "DQN AI (Neural Net)", "DQN", color=(50, 100, 200))
+    btn_heuristic = Button(center_x, start_y + 80, btn_w, btn_h, "Heuristic AI (Expert)", "HEURISTIC", color=(200, 50, 50))
+    btn_back = Button(center_x, start_y + 200, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
+    
+    buttons = [btn_dqn, btn_heuristic, btn_back]
+    
+    font_title = pg.font.SysFont('Comic Sans MS', 40, bold=True)
+    
+    while True:
+        screen.fill(config.background_color)
+        
+        title_surf = font_title.render("CHOOSE YOUR OPPONENT", True, (255, 255, 255))
+        title_rect = title_surf.get_rect(center=(config.width//2, config.height//6))
+        screen.blit(title_surf, title_rect)
+        
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                pg.quit(); sys.exit()
+            
+            # 檢查按鈕點擊
+            for btn in buttons:
+                if btn.is_clicked(event):
+                    return btn.action_code # 回傳 "DQN", "HEURISTIC", 或 "BACK"
+                    
+        for btn in buttons:
+            btn.draw(screen)
+            
+        pg.display.update()
+
 
 def game_over_screen(screen, result_data):
     pg.display.set_caption("Game Over")
@@ -521,13 +744,15 @@ def game_over_screen(screen, result_data):
 def main():
     pg.init()
     pg.font.init()
+    
     screen = pg.display.set_mode((config.width, config.height))
     clock = pg.time.Clock()
     font = pg.font.SysFont(*config.font)
-
+    
     current_mode = None
     
     while True:
+        # 1. 顯示主選單
         choice = main_menu(screen, font)
         
         if choice == "EXIT":
@@ -537,17 +762,38 @@ def main():
             settings_menu(screen)
             continue
         
+        # 2. 處理 AI 選擇邏輯
+        selected_ai_mode = None # 預設無
+        
+        if choice == "PVE":
+            # 如果選了 PVE，先跳出選擇 AI 難度的視窗
+            ai_choice = ai_selection_menu(screen, font)
+            if ai_choice == "BACK":
+                continue # 放棄，回到主選單
+            selected_ai_mode = ai_choice # 紀錄是 DQN 還是 HEURISTIC
+        
         current_mode = choice
         
+        # 3. 進入遊戲
         while True:
-            result = run_game(screen, clock, font, current_mode)
-            if result == "MENU": break 
-            elif result == "RESTART": continue 
+            # 將 ai_mode 傳入 run_game
+            result = run_game(screen, clock, font, current_mode, ai_mode=selected_ai_mode)
+            
+            if result == "MENU":
+                break # 回到主選單
+            elif result == "RESTART":
+                continue # 重新開始這一局 (保持同樣的 AI 設定)
             
             if isinstance(result, tuple) and result[0] == "GAME_OVER":
                 action = game_over_screen(screen, result[1])
-                if action == "RESTART": continue
-                elif action == "MENU": break
+                if action == "RESTART":
+                    continue
+                elif action == "MENU":
+                    break
+
+if __name__ == "__main__":
+    main()
+
 
 if __name__ == "__main__":
     main()
