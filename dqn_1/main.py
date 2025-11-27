@@ -9,6 +9,7 @@ import pieces
 import shots
 import Handler
 import numpy as np
+import network_utils # [NEW] Network Module
 try:
     import tetris_env
 except ImportError:
@@ -462,10 +463,11 @@ def pause_menu(screen):
         pg.display.update()
 
 # --- 核心遊戲流程 ---
-def run_game(screen, clock, font, mode, ai_mode=None):
+def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
     """
     核心遊戲迴圈
     參數 ai_mode: 當 mode='PVE' 時，指定 'DQN' 或 'HEURISTIC'
+    參數 net_mgr: 當 mode='LAN' 時，傳入 NetworkManager 物件
     """
     # --- P1 Initialization (人類玩家) ---
     shot1 = shots.Shot()
@@ -476,7 +478,7 @@ def run_game(screen, clock, font, mode, ai_mode=None):
     key_ticker1 = {pg.K_a: 0, pg.K_s: 0, pg.K_d: 0}
     game_over1 = False
 
-    # --- P2 Initialization (對手：人類 P2 或 AI) ---
+    # --- P2 Initialization (對手：人類 P2 或 AI 或 LAN) ---
     shot2 = None
     piece2 = None
     next_piece2 = None
@@ -492,7 +494,7 @@ def run_game(screen, clock, font, mode, ai_mode=None):
     counter2 = 0
     key_ticker2 = {pg.K_LEFT: 0, pg.K_DOWN: 0, pg.K_RIGHT: 0}
 
-    if mode in ['PVP', 'PVE']:
+    if mode in ['PVP', 'PVE', 'LAN']:
         shot2 = shots.Shot()
         shot2.tetris_timer = 0
         piece2 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
@@ -508,6 +510,8 @@ def run_game(screen, clock, font, mode, ai_mode=None):
                 ai_nn = AIPlayerNN()
         elif mode == 'PVE' and ai_mode == 'HEURISTIC':
              print("AI: Using Heuristic (Expert) Mode")
+        elif mode == 'LAN':
+             print("LAN Mode: Waiting for data...")
 
     # --- 畫面位置計算 ---
     p1_draw_x = config.P1_OFFSET_X
@@ -527,6 +531,55 @@ def run_game(screen, clock, font, mode, ai_mode=None):
             if action == "RESUME": paused = False; clock.tick(); continue
             elif action == "RESTART": return "RESTART"
             elif action == "MENU": return "MENU"
+
+        # --- LAN Data Exchange ---
+        if mode == 'LAN' and net_mgr:
+            if not net_mgr.connected:
+                return "MENU" # Disconnected
+            
+            # 1. Send Local State
+            local_data = {
+                'status': shot1.status,
+                'color': shot1.color,
+                'score': shot1.score,
+                'lines': shot1.line_count,
+                'piece_x': piece1.x,
+                'piece_y': piece1.y,
+                'piece_shape': piece1.shape,
+                'piece_rot': piece1.rotation,
+                'piece_color': piece1.color,
+                'next_piece_shape': next_piece1.shape,
+                'next_piece_color': next_piece1.color,
+                'game_over': game_over1,
+                'garbage_sent': 0 # Will be set if attack happens
+            }
+            
+            # 2. Receive Remote State
+            remote_data = net_mgr.get_latest_data()
+            if remote_data:
+                shot2.status = remote_data['status']
+                shot2.color = remote_data['color']
+                shot2.score = remote_data['score']
+                shot2.line_count = remote_data['lines']
+                
+                # Sync Piece 2
+                piece2.x = remote_data['piece_x']
+                piece2.y = remote_data['piece_y']
+                piece2.shape = remote_data['piece_shape']
+                piece2.rotation = remote_data['piece_rot']
+                piece2.color = remote_data['piece_color']
+                
+                # Sync Next Piece 2
+                next_piece2.shape = remote_data['next_piece_shape']
+                next_piece2.color = remote_data['next_piece_color']
+                
+                # Sync Game Over
+                if remote_data['game_over'] and not game_over2:
+                    game_over2 = True
+                    
+                # Sync Incoming Garbage
+                if remote_data.get('garbage_sent', 0) > 0:
+                    shot1.pending_garbage += remote_data['garbage_sent']
 
         # --- 事件處理 ---
         for event in pg.event.get():
@@ -646,7 +699,10 @@ def run_game(screen, clock, font, mode, ai_mode=None):
                 shot1.shake_timer = 20
             
             if mode != 'SOLO' and atk1 > 0:
-                shot2.pending_garbage += atk1
+                if mode == 'LAN' and net_mgr:
+                    local_data['garbage_sent'] = atk1 # Mark for sending
+                else:
+                    shot2.pending_garbage += atk1
 
             piece1 = next_piece1
             next_piece1 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
@@ -657,7 +713,7 @@ def run_game(screen, clock, font, mode, ai_mode=None):
                     winner_name = "AI Wins!" if mode == 'PVE' else "Player 2 Wins!"
 
         # --- Game Logic: P2 Check ---
-        if mode != 'SOLO' and not game_over2 and piece2.is_fixed:
+        if mode != 'SOLO' and mode != 'LAN' and not game_over2 and piece2.is_fixed:
             # 方塊落地後，重置 AI 思考
             if mode == 'PVE': ai_target_move = None; ai_think_timer = 0
             
@@ -690,6 +746,10 @@ def run_game(screen, clock, font, mode, ai_mode=None):
                 game_over2 = True
                 if mode != 'SOLO' and winner_name is None:
                     winner_name = "Player 1 Wins!"
+
+        # --- Send Data (LAN) ---
+        if mode == 'LAN' and net_mgr:
+            net_mgr.send(local_data)
 
         # --- 勝負判定 ---
         if mode == 'SOLO':
@@ -730,6 +790,8 @@ def run_game(screen, clock, font, mode, ai_mode=None):
             p2_name = "Player 2"
             if mode == 'PVE':
                 p2_name = "AI (DQN)" if ai_mode == 'DQN' else "AI (Heuristic)"
+            elif mode == 'LAN':
+                p2_name = "Network Opponent"
                 
             draw_player_ui(screen, shot2, piece2, next_piece2, font, p2_draw_x, None, None, None, None, p2_name)
             if game_over2:
@@ -756,10 +818,11 @@ def main_menu(screen, font):
     btn_solo = Button(center_x, start_y, btn_w, btn_h, "Solo Mode", "SOLO")
     btn_pvp = Button(center_x, start_y + 80, btn_w, btn_h, "1v1 Local", "PVP", color=(50, 100, 200))
     btn_pve = Button(center_x, start_y + 160, btn_w, btn_h, "1vAI Battle", "PVE", color=(200, 50, 50))
-    btn_settings = Button(center_x, start_y + 240, btn_w, btn_h, "Settings", "SETTINGS", color=(100, 100, 100))
-    btn_exit = Button(center_x, start_y + 320, btn_w, btn_h, "Exit Game", "EXIT", color=(50, 50, 50))
+    btn_lan = Button(center_x, start_y + 240, btn_w, btn_h, "LAN Battle", "LAN", color=(150, 50, 150))
+    btn_settings = Button(center_x, start_y + 320, btn_w, btn_h, "Settings", "SETTINGS", color=(100, 100, 100))
+    btn_exit = Button(center_x, start_y + 400, btn_w, btn_h, "Exit Game", "EXIT", color=(50, 50, 50))
     
-    buttons = [btn_solo, btn_pvp, btn_pve, btn_settings, btn_exit]
+    buttons = [btn_solo, btn_pvp, btn_pve, btn_lan, btn_settings, btn_exit]
 
     while True:
         screen.fill(config.background_color)
@@ -811,6 +874,91 @@ def ai_selection_menu(screen, font):
             
         pg.display.update()
 
+
+# --- LAN Menu ---
+def lan_menu(screen, font):
+    pg.display.set_caption("LAN Battle Setup")
+    
+    btn_w, btn_h = 300, 60
+    center_x = config.width // 2 - btn_w // 2
+    start_y = config.height // 3
+    
+    btn_host = Button(center_x, start_y, btn_w, btn_h, "Host Game", "HOST", color=(50, 150, 50))
+    btn_join = Button(center_x, start_y + 80, btn_w, btn_h, "Join Game", "JOIN", color=(50, 100, 200))
+    btn_back = Button(center_x, start_y + 200, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
+    
+    buttons = [btn_host, btn_join, btn_back]
+    
+    # Input box for IP
+    ip_text = "127.0.0.1"
+    input_active = False
+    input_rect = pg.Rect(center_x, start_y + 150, btn_w, 40)
+    
+    net_mgr = network_utils.NetworkManager()
+    
+    while True:
+        screen.fill(config.background_color)
+        
+        title_surf = pg.font.SysFont('Comic Sans MS', 40, bold=True).render("LAN SETUP", True, (255, 255, 255))
+        title_rect = title_surf.get_rect(center=(config.width//2, config.height//6))
+        screen.blit(title_surf, title_rect)
+        
+        # Draw Input Box
+        color = (255, 255, 255) if input_active else (150, 150, 150)
+        pg.draw.rect(screen, color, input_rect, 2)
+        text_surface = font.render(ip_text, True, (255, 255, 255))
+        screen.blit(text_surface, (input_rect.x + 5, input_rect.y + 5))
+        
+        # Label for Input
+        label_surf = font.render("Host IP:", True, (200, 200, 200))
+        screen.blit(label_surf, (input_rect.x - 100, input_rect.y + 5))
+        
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                pg.quit(); sys.exit()
+            
+            if event.type == pg.MOUSEBUTTONDOWN:
+                if input_rect.collidepoint(event.pos):
+                    input_active = True
+                else:
+                    input_active = False
+                
+                for btn in buttons:
+                    if btn.is_clicked(event):
+                        if btn.action_code == "BACK":
+                            return None, None
+                        elif btn.action_code == "HOST":
+                            # Show waiting screen
+                            screen.fill(config.background_color)
+                            wait_surf = font.render("Waiting for connection...", True, (255, 255, 255))
+                            screen.blit(wait_surf, (config.width//2 - 150, config.height//2))
+                            pg.display.update()
+                            
+                            if net_mgr.host_game():
+                                return "LAN", net_mgr
+                            
+                        elif btn.action_code == "JOIN":
+                            screen.fill(config.background_color)
+                            wait_surf = font.render(f"Connecting to {ip_text}...", True, (255, 255, 255))
+                            screen.blit(wait_surf, (config.width//2 - 150, config.height//2))
+                            pg.display.update()
+                            
+                            if net_mgr.join_game(ip_text):
+                                return "LAN", net_mgr
+            
+            if event.type == pg.KEYDOWN:
+                if input_active:
+                    if event.key == pg.K_RETURN:
+                        input_active = False
+                    elif event.key == pg.K_BACKSPACE:
+                        ip_text = ip_text[:-1]
+                    else:
+                        ip_text += event.unicode
+                        
+        for btn in buttons:
+            btn.draw(screen)
+            
+        pg.display.update()
 
 def game_over_screen(screen, result_data):
     pg.display.set_caption("Game Over")
@@ -880,6 +1028,7 @@ def main():
         
         # 2. 處理 AI 選擇邏輯
         selected_ai_mode = None # 預設無
+        net_mgr = None # 預設無
         
         if choice == "PVE":
             # 如果選了 PVE，先跳出選擇 AI 難度的視窗
@@ -887,24 +1036,41 @@ def main():
             if ai_choice == "BACK":
                 continue # 放棄，回到主選單
             selected_ai_mode = ai_choice # 紀錄是 DQN 還是 HEURISTIC
+            
+        elif choice == "LAN":
+            # 如果選了 LAN，跳出連線選單
+            lan_mode, mgr = lan_menu(screen, font)
+            if lan_mode is None:
+                continue
+            net_mgr = mgr
         
         current_mode = choice
         
         # 3. 進入遊戲
         while True:
             # 將 ai_mode 傳入 run_game
-            result = run_game(screen, clock, font, current_mode, ai_mode=selected_ai_mode)
+            result = run_game(screen, clock, font, current_mode, ai_mode=selected_ai_mode, net_mgr=net_mgr)
             
             if result == "MENU":
+                if net_mgr: net_mgr.close()
                 break # 回到主選單
             elif result == "RESTART":
+                # LAN 模式下 Restart 比較複雜，這裡先簡單處理：斷線重連
+                # 實際上應該發送 Restart 訊號，但為了簡化，LAN 模式下 Restart 回到選單
+                if current_mode == 'LAN':
+                    if net_mgr: net_mgr.close()
+                    break
                 continue # 重新開始這一局 (保持同樣的 AI 設定)
             
             if isinstance(result, tuple) and result[0] == "GAME_OVER":
                 action = game_over_screen(screen, result[1])
                 if action == "RESTART":
+                    if current_mode == 'LAN':
+                        if net_mgr: net_mgr.close()
+                        break
                     continue
                 elif action == "MENU":
+                    if net_mgr: net_mgr.close()
                     break
 
 if __name__ == "__main__":
