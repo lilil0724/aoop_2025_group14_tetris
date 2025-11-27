@@ -294,8 +294,9 @@ def run_game(screen, clock, font, mode):
         next_piece2 = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
         if mode == 'PVE' and AI_AVAILABLE:
             try:
-                ai_nn = AIPlayerNN.load('tetris_supervised.pt')
+                ai_nn = AIPlayerNN(model_path='tetris_dqn_new.pt')
             except:
+                print("Failed to load AI model")
                 ai_nn = AIPlayerNN() 
 
     # SOLO 模式置中

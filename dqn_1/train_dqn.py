@@ -17,24 +17,22 @@ import Handler
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"🔥 Training on: {DEVICE}")
 
-MAX_EPISODES = 30000        
-EPS_START = 0.3         
+MAX_EPISODES = 80000        
+EPS_START = 1.0        
 EPS_END = 0.001          
-EPS_DECAY_EPISODES = 26000
+EPS_DECAY_EPISODES = 60000 
 
-# 修改：加大記憶體，縮小 Batch Size 以穩定初期學習
 MEMORY_SIZE = 30000        
 BATCH_SIZE = 128
 GAMMA = 0.95              
-LR = 1e-4              # 重新訓練建議先用較大的 LR (1e-3)，之後微調可改 1e-4
+LR = 1e-4        
 
-SAVE_PATH = 'tetris_dqn_new.pt' # 建議改名，避免讀到舊的格式報錯
+SAVE_PATH = 'tetris_dqn_new.pt' 
 
 # ==========================================
 # 2. 輔助函式
 # ==========================================
 
-# 新增：計算單列高度的小工具 (給獎勵函數用)
 def get_column_height(board, col_idx):
     rows = config.rows
     for r in range(rows):
@@ -69,13 +67,13 @@ def get_raw_board_stats(board):
     return max_height, holes
 
 # ==========================================
-# 3. 核心特徵提取 (修正版：5 特徵)
+# 3. 核心特徵提取
 # ==========================================
 def get_nuno_features(board, lines_cleared):
     rows, cols = config.rows, config.columns
     grid = np.array(board).reshape(rows, cols)
     
-    # --- 1. 計算每行高度 (Heights) ---
+    # 1. Heights
     heights = []
     for c in range(cols):
         col_data = grid[:, c]
@@ -85,7 +83,7 @@ def get_nuno_features(board, lines_cleared):
         else:
             heights.append(0)
             
-    # --- 2. 計算深井 (Wells) [原本缺少的!] ---
+    # 2. Wells
     wells = 0
     for c in range(cols):
         left_h = heights[c-1] if c > 0 else rows
@@ -95,7 +93,7 @@ def get_nuno_features(board, lines_cleared):
         if depth >= 2:
             wells += depth
 
-    # --- 3. 計算坑洞 (Holes) ---
+    # 3. Holes
     holes_count = 0
     for c in range(cols):
         block_found = False
@@ -105,28 +103,26 @@ def get_nuno_features(board, lines_cleared):
             elif block_found and grid[r][c] == 0:
                 holes_count += 1
                 
-    # --- 4. 計算表面凹凸 (Bumpiness) ---
+    # 4. Bumpiness
     bump_sum = 0
     for i in range(cols - 1):
         bump_sum += abs(heights[i] - heights[i+1])
 
-    # --- 5. 歸一化 (Normalization) ---
+    # 5. Normalization
     f_lines = float(lines_cleared) / 4.0
     f_holes = min(float(holes_count) / 20.0, 1.0)
     f_bumpiness = min(float(bump_sum) / 50.0, 1.0)
     f_height = min(float(sum(heights)) / 200.0, 1.0)
-    f_wells = min(float(wells) / 20.0, 1.0) # 新增這個
+    f_wells = min(float(wells) / 20.0, 1.0)
 
-    # 回傳完整的 5 個特徵
     return np.array([f_lines, f_holes, f_bumpiness, f_height, f_wells], dtype=np.float32)
 
 # ==========================================
-# 4. 模型結構 (修正版：輸入 5)
+# 4. 模型結構
 # ==========================================
 class NunoNet(nn.Module):
     def __init__(self):
         super().__init__()
-        # 修改：Input 5 features, Hidden layer 64
         self.net = nn.Sequential(
             nn.Linear(5, 64),  
             nn.ReLU(),
@@ -141,7 +137,6 @@ class NunoNet(nn.Module):
             if isinstance(m, nn.Linear):
                 nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
                 nn.init.constant_(m.bias, 0)
-        # 技巧：讓最後一層 Bias 稍微偏正，鼓勵活著
         with torch.no_grad():
              self.net[-1].bias.fill_(0.1)
 
@@ -155,21 +150,29 @@ def train():
     model = NunoNet().to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR)
     criterion = nn.MSELoss()
+    
     memory = deque(maxlen=MEMORY_SIZE)
+    elite_memory = deque(maxlen=8000) 
     
     start_episode = 0
-    # 嘗試載入舊檔，如果形狀不對(報錯)就從頭開始
+    best_score_so_far = 300.0 
+    best_steps_so_far = 150
+
     if os.path.exists(SAVE_PATH):
         try:
-            chk = torch.load(SAVE_PATH)
+            chk = torch.load(SAVE_PATH, weights_only=False)
             model.load_state_dict(chk['model'])
             optimizer.load_state_dict(chk['optimizer'])
             start_episode = chk['episode'] + 1
+            if 'best_score' in chk:
+                best_score_so_far = chk['best_score']
+            if 'best_steps' in chk:
+                best_steps_so_far = chk['best_steps']
             print(f"✅ Loaded checkpoint from Episode {start_episode}")
         except Exception as e:
             print(f"⚠️ Load failed ({e}), starting NEW training session.")
 
-    print(f"--- Starting Adaptive Strategy Training (Total: {MAX_EPISODES}) ---")
+    print(f"--- Starting Elite Strategy Training (Total: {MAX_EPISODES}) ---")
     
     def get_epsilon(ep):
         if ep > EPS_DECAY_EPISODES: return EPS_END
@@ -185,6 +188,8 @@ def train():
         step_count = 0
         total_reward = 0
         game_over = False
+        
+        temp_game_memory = []
         
         while not game_over:
             legal_moves = []
@@ -212,48 +217,33 @@ def train():
                 Handler.instantDrop(s_sim, p_sim)
                 clears, _ = Handler.eliminateFilledRows(s_sim, p_sim)
                 
-                # === [修改重點] 動態策略與獎勵計算 ===
-                
-                # 1. 取得盤面原始狀態 (用於判斷是否危險)
+                sim_bump = sum(abs(get_column_height(s_sim.status, i) - get_column_height(s_sim.status, i+1)) for i in range(config.columns - 1))
                 sim_max_h, sim_holes = get_raw_board_stats(s_sim.status)
+                is_dangerous = (sim_holes > 2) or (sim_max_h >= 11)
                 
-                # 2. 危險判定
-                is_dangerous = (sim_holes > 2) or (sim_max_h >= 7)
-                
-                r = 15.0 # 只要活著就有 1 分
+                # 底薪設定 22.0
+                r = 22.0 
                 
                 if is_dangerous:
-                    # === [策略 A: 保守/恐慌模式] ===
                     if clears > 0:
-                        r += clears * 20.0  # 有消就好
-                    
-                    # 懲罰：在危險模式下，對「洞」和「高度」重罰
-                    r -= sim_holes * 1.5   
-                    r -= sim_max_h * 0.8    
-                    
+                        r += clears * 20.0  
+                    r -= sim_holes * 2.0   
+                    r -= sim_max_h * 1.0    
                 else:
-                    # === [策略 B: 激進/貪婪模式] ===
                     if clears > 0:
-                        # 指數級獎勵：消4行(Tetris) 給極高分
                         if clears == 4:
-                            r += 300.0
+                            r += 400.0 
                         else:
                             r += (clears ** 2) * config.columns
-                    
-                    # 安全模式下，稍微容忍深井 (為了 Tetris)
-                    r -= sim_holes * 0.5 
-                    r -= sim_max_h * 0.3    
+                    r -= sim_holes * 2.0
+                    r -= sim_max_h * 0.5 
+                    r -= sim_bump * 0.5   
                 
-                # 額外：加上 Bumpiness (表面凹凸) 懲罰
-                sim_bump = sum(abs(get_column_height(s_sim.status, i) - get_column_height(s_sim.status, i+1)) for i in range(config.columns - 1))
-                r -= sim_bump * 0.5
+                r -= sim_bump * 2.0
 
-                # 3. 獲取特徵 (這是修正後的 5 特徵版本!)
                 f = get_nuno_features(s_sim.status, clears)
-                
                 candidates.append((f, r, s_sim.status, action))
 
-            # Epsilon-Greedy 選擇
             if random.random() < epsilon:
                 chosen = random.choice(candidates)
             else:
@@ -271,15 +261,15 @@ def train():
             next_shot_obj = shots.Shot()
             next_shot_obj.status = next_board_status 
             
-            # === [修改重點] 死亡懲罰加重 ===
             if Handler.isDefeat(next_shot_obj, next_piece):
-                reward = -1000.0   # 讓 AI 極度恐懼死亡
+                reward = -1000.0
                 game_over = True
                 done = True
             else:
                 done = False
                 
-            memory.append((feat, reward, done, next_board_status))
+            transition = (feat, reward, done, next_board_status)
+            temp_game_memory.append(transition)
             
             shot = next_shot_obj
             piece = next_piece
@@ -288,11 +278,18 @@ def train():
             
             if step_count > 5000: game_over = True 
             
-            # 訓練步 (Experience Replay)
-            if len(memory) >= BATCH_SIZE and step_count % 5 == 0: # 加快訓練頻率
-                batch = random.sample(memory, BATCH_SIZE)
-                b_f, b_r, b_d, b_next_st = zip(*batch)
+            # 菁英混合訓練
+            if len(memory) >= BATCH_SIZE and step_count % 5 == 0:
+                if len(elite_memory) > BATCH_SIZE:
+                    elite_count = int(BATCH_SIZE * 0.2)
+                    normal_count = BATCH_SIZE - elite_count
+                    batch_elite = random.sample(elite_memory, elite_count)
+                    batch_normal = random.sample(memory, normal_count)
+                    batch = batch_elite + batch_normal
+                else:
+                    batch = random.sample(memory, BATCH_SIZE)
                 
+                b_f, b_r, b_d, b_next_st = zip(*batch)
                 t_f = torch.tensor(np.array(b_f), dtype=torch.float32, device=DEVICE)
                 t_r = torch.tensor(b_r, dtype=torch.float32, device=DEVICE)
                 t_d = torch.tensor(b_d, dtype=torch.float32, device=DEVICE)
@@ -301,7 +298,7 @@ def train():
                 with torch.no_grad():
                     next_feats = []
                     for st in b_next_st:
-                        next_feats.append(get_nuno_features(st, 0)) # Next state 預設 clears=0
+                        next_feats.append(get_nuno_features(st, 0))
                     t_next_f = torch.tensor(np.array(next_feats), dtype=torch.float32, device=DEVICE)
                     q_next = model(t_next_f).squeeze(-1)
                 
@@ -314,13 +311,38 @@ def train():
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+        
+        # === 遊戲結束結算 ===
+        
+        memory.extend(temp_game_memory)
+        
+        # 【修改】 菁英局判定邏輯：三者符合其一即可
+        is_elite = False
+        
+        if total_reward > best_score_so_far:
+            best_score_so_far = total_reward
+            best_steps_so_far = step_count
+            is_elite = True
+            print(f"🌟 New High Score! {total_reward:.1f} ({step_count} steps) (Saved to Elite Memory)")
+            
+        elif total_reward > 1000.0:
+            is_elite = True
+            
+        elif step_count > 200 and total_reward > -2000:
+            # 【新增】 只要活過 400 步，哪怕分數不高，也值得存下來學習「怎麼不死」
+            is_elite = True
+            
+        if is_elite:
+            elite_memory.extend(temp_game_memory)
 
         if episode % 50 == 0:
-            print(f"Ep {episode} | Score: {total_reward:.1f} | Eps: {epsilon:.3f} | Steps: {step_count}")
+            print(f"Ep {episode} | Score: {total_reward:.1f} | Best: {best_score_so_far:.1f} ({best_steps_so_far} steps) | Eps: {epsilon:.3f} | Steps: {step_count}")
             torch.save({
                 'episode': episode,
                 'model': model.state_dict(),
-                'optimizer': optimizer.state_dict()
+                'optimizer': optimizer.state_dict(),
+                'best_score': best_score_so_far,
+                'best_steps': best_steps_so_far
             }, SAVE_PATH)
 
 if __name__ == '__main__':

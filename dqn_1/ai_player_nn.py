@@ -67,7 +67,7 @@ def get_custom_features(board, lines_cleared):
     norm_lines = lines_cleared / 4.0
     norm_holes = min(holes / 20.0, 1.0)       # 超過 20 個洞就當作爛透了
     norm_bump = min(bumpiness / 50.0, 1.0)
-    norm_height = min(total_height / 100.0, 1.0)
+    norm_height = min(total_height / 200.0, 1.0)
     norm_wells = min(wells / 20.0, 1.0)
     
     return np.array([norm_lines, norm_holes, norm_bump, norm_height, norm_wells], dtype=np.float32)
@@ -81,11 +81,11 @@ class TetrisNetwork(nn.Module):
         super().__init__()
         # Input: 5 features (原本4個 + Wells)
         self.net = nn.Sequential(
-            nn.Linear(5, 32),
+            nn.Linear(5, 64),
             nn.ReLU(),
-            nn.Linear(32, 32),
+            nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(32, 1) # Output Score
+            nn.Linear(64, 1) # Output Score
         )
         self._initialize_weights()
 
@@ -121,7 +121,7 @@ class AIPlayerNN:
         self.model = TetrisNetwork().to(self.device)
         if model_path:
             try:
-                self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+                self.model.load_state_dict(torch.load(model_path, map_location=self.device), weights_only=False)
                 print(f"Loaded optimized model from {model_path}")
             except:
                 pass
