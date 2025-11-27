@@ -39,10 +39,37 @@ class Button:
     def draw(self, screen):
         mouse_pos = pg.mouse.get_pos()
         current_color = self.hover_color if self.rect.collidepoint(mouse_pos) else self.color
-        pg.draw.rect(screen, current_color, self.rect, border_radius=10)
-        pg.draw.rect(screen, (255, 255, 255), self.rect, 3, border_radius=10)
+        
+        x, y, w, h = self.rect.x, self.rect.y, self.rect.w, self.rect.h
+        r, g, b = current_color
+        
+        # 亮部與暗部計算
+        light = (min(255, int(r * 1.4)), min(255, int(g * 1.4)), min(255, int(b * 1.4)))
+        dark = (int(r * 0.6), int(g * 0.6), int(b * 0.6))
+        
+        bevel = 6 # 邊框厚度
+        
+        # 1. 填滿中心
+        pg.draw.rect(screen, current_color, (x + bevel, y + bevel, w - 2*bevel, h - 2*bevel))
+        
+        # 2. 繪製立體邊框 (梯形)
+        # 上 (亮)
+        pg.draw.polygon(screen, light, [(x, y), (x + w, y), (x + w - bevel, y + bevel), (x + bevel, y + bevel)])
+        # 左 (亮)
+        pg.draw.polygon(screen, light, [(x, y), (x + bevel, y + bevel), (x + bevel, y + h - bevel), (x, y + h)])
+        # 下 (暗)
+        pg.draw.polygon(screen, dark, [(x, y + h), (x + w, y + h), (x + w - bevel, y + h - bevel), (x + bevel, y + h - bevel)])
+        # 右 (暗)
+        pg.draw.polygon(screen, dark, [(x + w, y), (x + w, y + h), (x + w - bevel, y + h - bevel), (x + w - bevel, y + bevel)])
+        
+        # 3. 文字
         text_surf = self.font.render(self.text, True, (0, 0, 0))
         text_rect = text_surf.get_rect(center=self.rect.center)
+        
+        # 按下時的位移效果 (視覺回饋)
+        if self.rect.collidepoint(mouse_pos) and pg.mouse.get_pressed()[0]:
+             text_rect.move_ip(2, 2)
+             
         screen.blit(text_surf, text_rect)
 
     def is_clicked(self, event):
@@ -190,6 +217,29 @@ def get_ai_move_heuristic(shot, piece):
     return best_move
 # -------------------------------------------
 
+def draw_3d_block(surface, color, x, y, size):
+    """ 繪製立體方塊 (Bevel Effect) """
+    r, g, b = color
+    # 亮部 (Top/Left) - 提亮
+    light = (min(255, int(r * 1.4)), min(255, int(g * 1.4)), min(255, int(b * 1.4)))
+    # 暗部 (Bottom/Right) - 壓暗
+    dark = (int(r * 0.6), int(g * 0.6), int(b * 0.6))
+    
+    bevel = size // 6  # 邊框厚度
+    
+    # 1. 填滿中心 (原色)
+    pg.draw.rect(surface, color, (x + bevel, y + bevel, size - 2*bevel, size - 2*bevel))
+    
+    # 2. 四個梯形邊框
+    # 上 (亮)
+    pg.draw.polygon(surface, light, [(x, y), (x + size, y), (x + size - bevel, y + bevel), (x + bevel, y + bevel)])
+    # 左 (亮)
+    pg.draw.polygon(surface, light, [(x, y), (x + bevel, y + bevel), (x + bevel, y + size - bevel), (x, y + size)])
+    # 下 (暗)
+    pg.draw.polygon(surface, dark, [(x, y + size), (x + size, y + size), (x + size - bevel, y + size - bevel), (x + bevel, y + size - bevel)])
+    # 右 (暗)
+    pg.draw.polygon(surface, dark, [(x + size, y), (x + size, y + size), (x + size - bevel, y + size - bevel), (x + size - bevel, y + bevel)])
+
 
 def draw_grid(surface, offset_x):
     grid_surface = pg.Surface(
@@ -222,15 +272,12 @@ def draw_player_ui(screen, shot, piece, next_piece, font,
     # 1. 繪製盤面 (已固定方塊)
     for y, line in enumerate(shot.color):
         for x, color in enumerate(line):
-            draw_color = (0, 0, 0) if shot.status[y][x] == 0 else color
-            if shot.status[y][x] == 0: draw_color = config.background_color
-            
-            pg.draw.rect(screen, draw_color, (
-                offset_x + x * config.grid,
-                offset_y + y * config.grid,
-                config.grid,
-                config.grid
-            ))
+            if shot.status[y][x] != 0:
+                draw_3d_block(screen, color, 
+                    offset_x + x * config.grid,
+                    offset_y + y * config.grid,
+                    config.grid
+                )
 
     # 2. 繪製 [投影 Ghost Piece]
     global SHOW_GHOST
@@ -250,12 +297,11 @@ def draw_player_ui(screen, shot, piece, next_piece, font,
     if not piece.is_fixed:
         for y, x in Handler.getCellsAbsolutePosition(piece):
             if 0 <= y < config.rows and 0 <= x < config.columns:
-                pg.draw.rect(screen, piece.color, (
+                draw_3d_block(screen, piece.color,
                     offset_x + x * config.grid,
                     offset_y + y * config.grid,
-                    config.grid,
                     config.grid
-                ))
+                )
 
     # 4. Grid (內部網格)
     draw_grid(screen, offset_x)
@@ -289,7 +335,7 @@ def draw_player_ui(screen, shot, piece, next_piece, font,
         for x in range(-2, 3):
             pg.draw.rect(screen, (50, 50, 50), (next_center_x + x * config.grid, next_center_y + y * config.grid, config.grid, config.grid))
     for y, x in next_piece.getCells():
-        pg.draw.rect(screen, next_piece.color, (next_center_x + x * config.grid, next_center_y + y * config.grid, config.grid, config.grid))
+        draw_3d_block(screen, next_piece.color, next_center_x + x * config.grid, next_center_y + y * config.grid, config.grid)
 
     # Garbage Bar
     if shot.pending_garbage > 0:
