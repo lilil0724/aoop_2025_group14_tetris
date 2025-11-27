@@ -86,6 +86,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
 
     running = True
     paused = False
+    send_timer = 0 # [NEW] Network send rate limiter
     
     while running:
         # --- Pause ---
@@ -113,6 +114,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 p.shot.color = data['color']
                 p.shot.score = data['score']
                 p.shot.line_count = data['lines']
+                p.shot.pending_garbage = data.get('pending_garbage', 0) # [NEW] Sync garbage bar
                 p.piece.x = data['piece_x']
                 p.piece.y = data['piece_y']
                 p.piece.shape = data['piece_shape']
@@ -127,23 +129,26 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             if diff > 0:
                 players[my_id].shot.pending_garbage += diff
                 
-            # 3. Send Local Data
-            me = players[my_id]
-            local_data = {
-                'status': me.shot.status,
-                'color': me.shot.color,
-                'score': me.shot.score,
-                'lines': me.shot.line_count,
-                'piece_x': me.piece.x,
-                'piece_y': me.piece.y,
-                'piece_shape': me.piece.shape,
-                'piece_rot': me.piece.rotation,
-                'piece_color': me.piece.color,
-                'next_piece_shape': me.next_piece.shape,
-                'next_piece_color': me.next_piece.color,
-                'game_over': me.game_over
-            }
-            net_mgr.send(local_data)
+            # 3. Send Local Data (Rate Limited: Every 3 frames ~ 20 FPS)
+            send_timer = (send_timer + 1) % 3
+            if send_timer == 0:
+                me = players[my_id]
+                local_data = {
+                    'status': me.shot.status,
+                    'color': me.shot.color,
+                    'score': me.shot.score,
+                    'lines': me.shot.line_count,
+                    'pending_garbage': me.shot.pending_garbage, # [NEW] Send my garbage status
+                    'piece_x': me.piece.x,
+                    'piece_y': me.piece.y,
+                    'piece_shape': me.piece.shape,
+                    'piece_rot': me.piece.rotation,
+                    'piece_color': me.piece.color,
+                    'next_piece_shape': me.next_piece.shape,
+                    'next_piece_color': me.next_piece.color,
+                    'game_over': me.game_over
+                }
+                net_mgr.send(local_data)
 
         # --- Event Handling ---
         for event in pg.event.get():
