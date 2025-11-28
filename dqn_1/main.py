@@ -15,7 +15,7 @@ def main():
     current_mode = None
     
     while True:
-        # 1. 顯示主選單
+        # 1 顯示主選單
         choice = main_menu(screen, font)
         
         if choice == "EXIT":
