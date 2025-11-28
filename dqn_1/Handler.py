@@ -91,40 +91,40 @@ def isDefeat(shot, piece):
     return False
 
 # 消去列（自底向上檢查；清除一列後把上面整體下移）
-def eliminateFilledRows(shot, piece): # <-- (修改)
+def eliminateFilledRows(shot, piece):
     lines = 0
     rows = config.rows
     cols = config.columns
 
     y = rows - 1
     while y >= 0:
-        # 該列是否滿
-        if all(shot.status[y][x] == 2 for x in range(cols)):
+        # 該列是否滿 (只要不是0都算佔用，避免狀態碼不一致問題)
+        if all(shot.status[y][x] != 0 for x in range(cols)):
             lines += 1
             # 這一列以上往下搬一列
             for yy in range(y, 0, -1):
                 for x in range(cols):
                     shot.status[yy][x] = shot.status[yy - 1][x]
-                    if hasattr(shot, "color"):
-                        shot.color[yy][x] = shot.color[yy - 1][x]
+                    shot.color[yy][x] = shot.color[yy - 1][x]
             # 最頂列清空
             for x in range(cols):
                 shot.status[0][x] = 0
-                if hasattr(shot, "color"):
-                    shot.color[0][x] = config.background_color # (修改) 用背景色
-            # y 留在原位
+                shot.color[0][x] = config.background_color
+            # y 留在原位 (檢查搬下來的那一列)
         else:
             y -= 1
 
     # 計分
-    score_table = getattr(config, "score_count", {1: 40, 2: 100, 3: 300, 4: 1200})
-    shot.line_count += lines
-    shot.score += score_table.get(lines, 0)
+    if lines > 0:
+        score_table = getattr(config, "score_count", {1: 40, 2: 100, 3: 300, 4: 1200})
+        shot.line_count += lines
+        shot.score += score_table.get(lines, 0)
+        # print(f"DEBUG: Cleared {lines} lines! Total: {shot.line_count}")
     
-    # (新增) 檢查 All Clear
-    all_clear = all(shot.status[y][x] == 0 for y in range(rows) for x in range(cols))
+    # 檢查 All Clear
+    all_clear = all(shot.status[r][c] == 0 for r in range(rows) for c in range(cols))
     
-    return (lines, all_clear) # <-- (修改) 回傳消行數和 PC 狀態
+    return (lines, all_clear)
 
 
 # --- (以下為新增函式) ---

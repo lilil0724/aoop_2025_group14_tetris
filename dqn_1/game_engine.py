@@ -21,7 +21,7 @@ except ImportError:
     print("Warning: ai_player_nn.py not found. 1vAI mode will be disabled or random.")
 
 # --- 核心遊戲流程 ---
-def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
+def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None):
     
     # --- Player Context Helper ---
     class PlayerContext:
@@ -194,6 +194,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             if p.game_over: continue
             
             # AI Logic
+            ai_dropping = False
             if p.is_ai:
                 if p.ai_target_move is None:
                     if p.ai_think_timer < settings.AI_THINKING_DELAY:
@@ -220,23 +221,35 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                         p.ai_timer += 1
                     
                     if aligned:
+                        ai_dropping = True
                         drop_spd = max(2, config.difficulty // 8)
-                        if p.counter >= drop_spd: Handler.drop(p.shot, p.piece); p.counter = 0
-                        else: p.counter += 1
-                        continue # Skip normal gravity if AI is dropping
+                        if p.counter >= drop_spd: 
+                            Handler.drop(p.shot, p.piece)
+                            p.counter = 0
+                        else: 
+                            p.counter += 1
 
-            # Gravity
-            if p.counter >= config.difficulty:
-                Handler.drop(p.shot, p.piece)
-                p.counter = 0
-            else:
-                p.counter += 1
+            # Gravity (Only if not AI dropping)
+            if not ai_dropping:
+                if p.counter >= config.difficulty:
+                    Handler.drop(p.shot, p.piece)
+                    p.counter = 0
+                else:
+                    p.counter += 1
                 
             # Lock & Clear
             if p.piece.is_fixed:
                 if p.is_ai: p.ai_target_move = None # Reset AI
                 
                 clears, all_clear = Handler.eliminateFilledRows(p.shot, p.piece)
+                
+                # 播放音效
+                if clears > 0 and sounds:
+                    if clears == 4 and sounds.get('tetris'):
+                        sounds['tetris'].play()
+                    elif sounds.get('clear'):
+                        sounds['clear'].play()
+
                 if clears == 4: p.shot.tetris_timer = 60
                 
                 # Attack Calculation
@@ -278,7 +291,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
         
         if mode == 'SOLO':
             if players[0].game_over:
-                return "GAME_OVER", {"winner": "Solo", "score": players[0].shot.score}
+                return "GAME_OVER", {"winner": "Solo", "score": players[0].shot.score, "lines": players[0].shot.line_count}
         else:
             # Multiplayer
             # 只有當所有預期玩家都連線後，才開始檢查勝利條件
@@ -299,15 +312,17 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 # If only 1 left, they win. If 0, Draw.
                 winner_name = "Draw"
                 score = 0
+                lines = 0
                 for p in players.values():
                     if not p.game_over:
                         winner_name = p.name
                         score = p.shot.score
+                        lines = p.shot.line_count
                         break
                 
                 # Special case: If I am the winner, I might want to keep playing?
                 # Usually Tetris Battle ends when last man stands.
-                return "GAME_OVER", {"winner": winner_name, "score": score}
+                return "GAME_OVER", {"winner": winner_name, "score": score, "lines": lines}
 
         # --- Rendering ---
         screen.fill(config.background_color)
@@ -322,20 +337,35 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             # 1v1 or Solo: Classic Layout (Left: Me, Right: Opponent)
             me = players[my_id]
             surf_local = draw_player_ui_surface(me.shot, me.piece, me.next_piece, font, me.name)
-            screen.blit(surf_local, (50, 50))
+            
+            # Calculate total width to center
+            w_local = surf_local.get_width()
+            w_op = 0
+            gap = 50
+            
+            others = [p for pid, p in players.items() if pid != my_id]
+            if others:
+                w_op = w_local # Assuming same size
+                total_w = w_local + gap + w_op
+            else:
+                total_w = w_local
+            
+            start_x = (config.width - total_w) // 2
+            
+            # Draw Local
+            screen.blit(surf_local, (start_x, 50))
             
             if me.game_over:
                 s = pg.Surface(surf_local.get_size(), pg.SRCALPHA)
                 s.fill((0,0,0,150))
-                screen.blit(s, (50, 50))
+                screen.blit(s, (start_x, 50))
                 txt = font.render("GAME OVER", True, (255, 50, 50))
-                screen.blit(txt, txt.get_rect(center=(50 + surf_local.get_width()//2, 50 + surf_local.get_height()//2)))
+                screen.blit(txt, txt.get_rect(center=(start_x + surf_local.get_width()//2, 50 + surf_local.get_height()//2)))
             
-            others = [p for pid, p in players.items() if pid != my_id]
             if others:
                 op = others[0]
                 surf_op = draw_player_ui_surface(op.shot, op.piece, op.next_piece, font, op.name)
-                x = 50 + surf_local.get_width() + 50
+                x = start_x + w_local + gap
                 y = 50
                 screen.blit(surf_op, (x, y))
                 
@@ -362,9 +392,10 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             scaled_w = int(base_w * scale)
             scaled_h = int((config.rows * config.grid + 50) * scale)
             
-            start_x = 50
-            start_y = 50
             gap_x = 20
+            total_w = len(sorted_pids) * scaled_w + (len(sorted_pids) - 1) * gap_x
+            start_x = (config.width - total_w) // 2
+            start_y = 50
             
             for i, pid in enumerate(sorted_pids):
                 p = players[pid]

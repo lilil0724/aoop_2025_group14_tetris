@@ -1,5 +1,6 @@
 import pygame as pg
 import sys
+import os
 import config
 from menus import main_menu, settings_menu, ai_selection_menu, lan_menu, game_over_screen
 from game_engine import run_game
@@ -8,6 +9,21 @@ def main():
     pg.init()
     pg.font.init()
     
+    # 初始化音效
+    sounds = {}
+    try:
+        pg.mixer.init()
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        clear_path = os.path.join(base_path, 'clear.wav')
+        tetris_path = os.path.join(base_path, 'tetris.wav')
+        
+        if os.path.exists(clear_path):
+            sounds['clear'] = pg.mixer.Sound(clear_path)
+        if os.path.exists(tetris_path):
+            sounds['tetris'] = pg.mixer.Sound(tetris_path)
+    except Exception as e:
+        print(f"Warning: Sound initialization failed: {e}")
+
     screen = pg.display.set_mode((config.width, config.height))
     clock = pg.time.Clock()
     font = pg.font.SysFont(*config.font)
@@ -48,7 +64,7 @@ def main():
         # 3. 進入遊戲
         while True:
             # 將 ai_mode 傳入 run_game
-            result = run_game(screen, clock, font, current_mode, ai_mode=selected_ai_mode, net_mgr=net_mgr)
+            result = run_game(screen, clock, font, current_mode, ai_mode=selected_ai_mode, net_mgr=net_mgr, sounds=sounds)
             
             if result == "MENU":
                 if net_mgr: net_mgr.close()
