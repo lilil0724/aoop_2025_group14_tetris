@@ -47,7 +47,7 @@ def settings_menu(screen):
                 return 
 
         for btn in buttons: btn.draw(screen)
-    pg.display.update()
+        pg.display.update()
 
 # --- 控制設定選單 ---
 
