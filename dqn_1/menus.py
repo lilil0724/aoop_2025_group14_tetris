@@ -19,6 +19,7 @@ def settings_menu(screen):
     center_y = config.height // 3
     
     btn_controls = Button(center_x, center_y + 80, btn_w, btn_h, "Controls", "CONTROLS", color=(50, 100, 200))
+
     btn_back = Button(center_x, center_y + 160, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
     
     while True:
