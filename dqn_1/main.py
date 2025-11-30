@@ -21,6 +21,17 @@ def main():
             sounds['clear'] = pg.mixer.Sound(clear_path)
         if os.path.exists(tetris_path):
             sounds['tetris'] = pg.mixer.Sound(tetris_path)
+            
+        # Load and play BGM
+        bgm_path = os.path.join(base_path, '2_23_AM_2.mp3')
+        if os.path.exists(bgm_path):
+            pg.mixer.music.load(bgm_path)
+            pg.mixer.music.set_volume(0.5) # Set volume to 50%
+            pg.mixer.music.play(-1) # Loop indefinitely
+            print(f"BGM loaded: {bgm_path}")
+        else:
+            print(f"BGM not found: {bgm_path}")
+            
     except Exception as e:
         print(f"Warning: Sound initialization failed: {e}")
 

@@ -1,5 +1,6 @@
 import pygame as pg
 import sys
+import os
 import threading
 import config
 import settings
@@ -262,6 +263,18 @@ def pause_menu(screen):
 
 def main_menu(screen, font):
     pg.display.set_caption("Tetris Battle - Menu")
+    
+    # Load background
+    bg_image = None
+    try:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        bg_path = os.path.join(base_path, 'background.png')
+        if os.path.exists(bg_path):
+            bg_image = pg.image.load(bg_path).convert()
+            bg_image = pg.transform.scale(bg_image, (config.width, config.height))
+    except Exception as e:
+        print(f"Failed to load background: {e}")
+
     btn_w, btn_h = 200, 60
     center_x = config.width // 2 - btn_w // 2
     start_y = config.height // 4
@@ -276,7 +289,11 @@ def main_menu(screen, font):
     buttons = [btn_solo, btn_pvp, btn_pve, btn_lan, btn_settings, btn_exit]
 
     while True:
-        screen.fill(config.background_color)
+        if bg_image:
+            screen.blit(bg_image, (0, 0))
+        else:
+            screen.fill(config.background_color)
+            
         title_surf = pg.font.SysFont('Comic Sans MS', 60, bold=True).render("TETRIS BATTLE", True, (255, 215, 0))
         title_rect = title_surf.get_rect(center=(config.width//2, config.height//8))
         screen.blit(title_surf, title_rect)
