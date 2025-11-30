@@ -87,7 +87,7 @@ def main_menu(screen, font):
     
     btn_solo = Button(center_x, start_y, btn_w, btn_h, "Solo Mode", "SOLO")
     btn_pvp = Button(center_x, start_y + 80, btn_w, btn_h, "1v1 Local", "PVP", color=(50, 100, 200))
-    # [修改] 這裡按鈕依然叫 1vAI Battle，但點進去不會有二級選單
+
     btn_pve = Button(center_x, start_y + 160, btn_w, btn_h, "1vAI Battle", "PVE", color=(200, 50, 50))
     btn_lan = Button(center_x, start_y + 240, btn_w, btn_h, "LAN Battle", "LAN", color=(150, 50, 150))
     btn_settings = Button(center_x, start_y + 320, btn_w, btn_h, "Settings", "SETTINGS", color=(100, 100, 100))
@@ -267,8 +267,7 @@ def game_over_screen(screen, result_data):
                 if btn.is_clicked(event): return btn.action_code
         for btn in buttons: btn.draw(screen)
         pg.display.update()
-# menus.py 的 ai_selection_menu 函式
-# ... (前面的 imports 保持不變)
+
 
 def ai_selection_menu(screen, font):
     pg.display.set_caption("Select AI Opponent")
@@ -277,10 +276,9 @@ def ai_selection_menu(screen, font):
     center_x = config.width // 2 - btn_w // 2
     start_y = config.height // 3
     
-    # [修改] 將 DQN 按鈕改為 Weighted AI
     btn_weight = Button(center_x, start_y, btn_w, btn_h, "Weighted AI (8-Param)", "WEIGHT", color=(50, 100, 200))
-    # Expert 保留，作為另一個對照組 (全速的 Heuristic)
-    btn_expert = Button(center_x, start_y + 80, btn_w, btn_h, "Expert AI (Fast)", "EXPERT", color=(200, 50, 50))
+
+    btn_expert = Button(center_x, start_y + 80, btn_w, btn_h, "Expert AI (Trained)", "EXPERT", color=(200, 50, 50))
     btn_back = Button(center_x, start_y + 200, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
     
     buttons = [btn_weight, btn_expert, btn_back]

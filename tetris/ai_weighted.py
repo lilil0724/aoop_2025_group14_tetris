@@ -5,7 +5,7 @@ import Handler
 
 class WeightedAI:
     def __init__(self):
-        # Dellacherie's Algorithm Weights (你指定的 8 個權重)
+        # Dellacherie's Algorithm Weights 
         # 順序對應下方的 get_features 回傳順序
         self.weights = np.array([
             -4.5001,  # 1. Landing Height

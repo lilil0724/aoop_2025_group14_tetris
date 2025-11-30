@@ -47,10 +47,6 @@ class AIPlayerNN:
         best_score = -float('inf')
         best_move = None
         
-        # 取得所有合法動作 (借用 teacher 的邏輯來列舉動作，省去重寫)
-        # 這裡我們只列舉動作，不使用 teacher 的評分
-        
-        # 簡化版動作列舉 (複製自 HeuristicAI 的遍歷邏輯)
         num_rotations = len(config.shapes[piece.shape])
         if piece.shape == 'O': num_rotations = 1
         elif piece.shape in ['S', 'Z', 'I']: num_rotations = 2

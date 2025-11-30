@@ -39,7 +39,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             self.name = name
             
             self.counter = 0
-            # [修改] key_ticker 加入所需的按鍵 (WASD, Arrows, L, Space)
+            # key_ticker 加入所需的按鍵 (WASD, Arrows, L, Space)
             self.key_ticker = {k: 0 for k in [
                 pg.K_a, pg.K_s, pg.K_d, pg.K_w, 
                 pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN, pg.K_UP,
