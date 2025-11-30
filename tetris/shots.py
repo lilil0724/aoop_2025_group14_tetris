@@ -17,5 +17,4 @@ class Shot(object):
         self.garbage_hole_pos = random.randint(0, config.columns - 1) 
         self.shake_timer = 0
         
-        # [新增] All Clear 特效計時器
         self.all_clear_timer = 0
