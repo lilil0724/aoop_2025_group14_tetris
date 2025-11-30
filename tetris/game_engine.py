@@ -39,7 +39,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             self.name = name
             
             self.counter = 0
-            # key_ticker 加入所需的按鍵 (WASD, Arrows, L, Space)
+            # key_ticker
             self.key_ticker = {k: 0 for k in [
                 pg.K_a, pg.K_s, pg.K_d, pg.K_w, 
                 pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN, pg.K_UP,
@@ -77,7 +77,6 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
         
     elif mode == 'PVE':
         players[0] = PlayerContext(is_local=True, name="Player 1")
-        
         speed_map = { 1: 15, 2: 8, 3: 3, 4: 0 }
         selected_speed_delay = speed_map.get(settings.AI_SPEED_LEVEL, 8)
         
@@ -145,7 +144,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 }
                 net_mgr.send(local_data)
 
-        # --- Event Handling (控制鍵位修改) ---
+        # --- Event Handling ---
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
             if event.type == pg.KEYDOWN:
@@ -153,7 +152,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 
                 # --- 模式區分 ---
                 if mode == 'PVP':
-                    # [PVP 維持不變] P1: WASD, P2: Arrows
+                    # P1: WASD
                     p1 = players[0]
                     if not p1.game_over:
                         if event.key == pg.K_w: Handler.rotate(p1.shot, p1.piece)
@@ -162,6 +161,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                         if event.key == pg.K_d: p1.key_ticker[pg.K_d] = 13; Handler.moveRight(p1.shot, p1.piece)
                         if event.key == pg.K_LSHIFT: Handler.instantDrop(p1.shot, p1.piece)
                     
+                    # P2: Arrows
                     p2 = players[1]
                     if not p2.game_over:
                         if event.key == pg.K_UP: Handler.rotate(p2.shot, p2.piece)
@@ -171,37 +171,17 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                         if event.key == pg.K_RSHIFT: Handler.instantDrop(p2.shot, p2.piece)
                 
                 else:
-                    # 使用 WASD + L + Space
+                    # SOLO, PVE, LAN -> WASD + L + Space
                     p_local = players[my_id]
                     if not p_local.game_over:
-                        # W: Rotate CW
-                        if event.key == pg.K_w: 
-                            Handler.rotate(p_local.shot, p_local.piece)
-                        
-                        # L: Rotate CCW 
-                        if event.key == pg.K_l:
-                            Handler.rotateCCW(p_local.shot, p_local.piece)
+                        if event.key == pg.K_w: Handler.rotate(p_local.shot, p_local.piece)
+                        if event.key == pg.K_l: Handler.rotateCCW(p_local.shot, p_local.piece)
+                        if event.key == pg.K_s: p_local.key_ticker[pg.K_s] = 13; Handler.drop(p_local.shot, p_local.piece)
+                        if event.key == pg.K_a: p_local.key_ticker[pg.K_a] = 13; Handler.moveLeft(p_local.shot, p_local.piece)
+                        if event.key == pg.K_d: p_local.key_ticker[pg.K_d] = 13; Handler.moveRight(p_local.shot, p_local.piece)
+                        if event.key == pg.K_SPACE: Handler.instantDrop(p_local.shot, p_local.piece)
 
-                        # S: Soft Drop
-                        if event.key == pg.K_s: 
-                            p_local.key_ticker[pg.K_s] = 13
-                            Handler.drop(p_local.shot, p_local.piece)
-                        
-                        # A: Move Left
-                        if event.key == pg.K_a:
-                            p_local.key_ticker[pg.K_a] = 13
-                            Handler.moveLeft(p_local.shot, p_local.piece)
-                            
-                        # D: Move Right
-                        if event.key == pg.K_d:
-                            p_local.key_ticker[pg.K_d] = 13
-                            Handler.moveRight(p_local.shot, p_local.piece)
-                        
-                        # Space: Hard Drop (新需求)
-                        if event.key == pg.K_SPACE:
-                            Handler.instantDrop(p_local.shot, p_local.piece)
-
-        # --- DAS (Delayed Auto Shift) ---
+        # --- DAS ---
         keys = pg.key.get_pressed()
         def do_das(p, k_l, k_r, k_d):
             if p.game_over: return
@@ -211,13 +191,10 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             for k in p.key_ticker:
                 if p.key_ticker[k] > 0: p.key_ticker[k] -= 1
         
-        # DAS 也要依照模式分配
         if mode == 'PVP':
-            # PVP 模式下，P1 用 WASD，P2 用 Arrows
             do_das(players[0], pg.K_a, pg.K_d, pg.K_s)
             do_das(players[1], pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN)
         else:
-            # 其他模式下，Local Player 改用 WASD
             do_das(players[my_id], pg.K_a, pg.K_d, pg.K_s)
 
         # --- Game Logic ---
@@ -230,50 +207,38 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 if not p.piece.is_fixed:
                     if p.ai_act_timer >= p.ai_act_interval:
                         p.ai_act_timer = 0
-                        
                         if p.ai_target_move is None:
                             if hasattr(p.ai_agent, 'find_best_move'):
                                 p.ai_target_move = p.ai_agent.find_best_move(p.shot, p.piece)
                             else:
                                 p.ai_target_move = get_ai_move_heuristic(p.shot, p.piece)
-                                
                             if p.ai_target_move is None:
                                 p.ai_target_move = (p.piece.x, p.piece.rotation)
-
                         if p.ai_target_move:
                             tx, tr = p.ai_target_move
                             moved = False
-                            
-                            if p.piece.rotation != tr:
-                                Handler.rotate(p.shot, p.piece)
-                                moved = True
-                            elif p.piece.x < tx:
-                                Handler.moveRight(p.shot, p.piece)
-                                moved = True
-                            elif p.piece.x > tx:
-                                Handler.moveLeft(p.shot, p.piece)
-                                moved = True
-                            
+                            if p.piece.rotation != tr: Handler.rotate(p.shot, p.piece); moved = True
+                            elif p.piece.x < tx: Handler.moveRight(p.shot, p.piece); moved = True
+                            elif p.piece.x > tx: Handler.moveLeft(p.shot, p.piece); moved = True
                             if not moved: 
-                                if ai_mode == 'EXPERT':
-                                    Handler.instantDrop(p.shot, p.piece)
-                                else:
-                                    Handler.drop(p.shot, p.piece) 
-                    else:
-                        p.ai_act_timer += 1
+                                if ai_mode == 'EXPERT': Handler.instantDrop(p.shot, p.piece)
+                                else: Handler.drop(p.shot, p.piece) 
+                    else: p.ai_act_timer += 1
 
             if not p.is_ai:
                 if p.counter >= config.difficulty:
                     Handler.drop(p.shot, p.piece)
                     p.counter = 0
-                else:
-                    p.counter += 1
+                else: p.counter += 1
                 
             if p.piece.is_fixed:
                 if p.is_ai: p.ai_target_move = None 
                 
                 clears, all_clear = Handler.eliminateFilledRows(p.shot, p.piece)
+                
+                # [新增] 觸發計時器
                 if clears == 4: p.shot.tetris_timer = 60
+                if all_clear: p.shot.all_clear_timer = 60 
                 
                 atk = 0
                 if mode != 'SOLO':
@@ -301,12 +266,10 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                             players[target_id].shot.pending_garbage += atk
                         
                 p.piece = p.next_piece
-                if not p.bag:
-                    p.bag = get_new_bag()
+                if not p.bag: p.bag = get_new_bag()
                 p.next_piece = pieces.Piece(5, 0, p.bag.pop())
                 
-                if Handler.isDefeat(p.shot, p.piece):
-                    p.game_over = True
+                if Handler.isDefeat(p.shot, p.piece): p.game_over = True
 
         # --- End Conditions ---
         alive_count = sum(1 for p in players.values() if not p.game_over)
@@ -319,8 +282,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 best_score = -1
                 for p in players.values():
                     if p.shot.score > best_score:
-                        best_score = p.shot.score
-                        winner_name = p.name
+                        best_score = p.shot.score; winner_name = p.name
                 return "GAME_OVER", {"winner": winner_name, "score": best_score}
             else:
                 return "GAME_OVER", {"winner": "Solo", "score": players[0].shot.score}
@@ -328,41 +290,33 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
         # --- Rendering ---
         screen.fill(config.background_color)
         total_players = len(players)
-        
         temp_surf = draw_player_ui_surface(players[my_id].shot, players[my_id].piece, players[my_id].next_piece, font, players[my_id].name)
-        surf_w = temp_surf.get_width()
-        surf_h = temp_surf.get_height()
+        surf_w, surf_h = temp_surf.get_width(), temp_surf.get_height()
         
         if total_players == 1:
             p = players[my_id]
             surf = draw_player_ui_surface(p.shot, p.piece, p.next_piece, font, p.name)
             center_x = (config.width - surf_w) // 2
-            center_y = (config.height - surf_h) // 2
-            if center_y < 20: center_y = 20
+            center_y = max(20, (config.height - surf_h) // 2)
             screen.blit(surf, (center_x, center_y))
-            if p.game_over:
-                _draw_game_over_overlay(screen, surf, center_x, center_y, font, "DEFEAT")
+            if p.game_over: _draw_game_over_overlay(screen, surf, center_x, center_y, font, "DEFEAT")
 
         elif total_players == 2:
             gap = 50
             total_w = surf_w * 2 + gap
             start_x = (config.width - total_w) // 2
-            y_pos = (config.height - surf_h) // 2
-            if y_pos < 20: y_pos = 20
-            sorted_pids = sorted(players.keys())
-            for i, pid in enumerate(sorted_pids):
+            y_pos = max(20, (config.height - surf_h) // 2)
+            for i, pid in enumerate(sorted(players.keys())):
                 p = players[pid]
                 surf = draw_player_ui_surface(p.shot, p.piece, p.next_piece, font, p.name)
                 x_pos = start_x + i * (surf_w + gap)
                 screen.blit(surf, (x_pos, y_pos))
-                if p.game_over:
-                     _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "DEFEAT")
+                if p.game_over: _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "DEFEAT")
                      
         else:
             sorted_pids = [my_id] + sorted([pid for pid in players if pid != my_id])
             scale = 0.75
-            scaled_w = int(surf_w * scale)
-            scaled_h = int(surf_h * scale)
+            scaled_w, scaled_h = int(surf_w * scale), int(surf_h * scale)
             gap = 20
             total_w = len(players) * scaled_w + (len(players)-1) * gap
             start_x = (config.width - total_w) // 2
@@ -373,14 +327,16 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 surf = pg.transform.smoothscale(surf, (scaled_w, scaled_h))
                 x_pos = start_x + i * (scaled_w + gap)
                 screen.blit(surf, (x_pos, y_pos))
-                if p.game_over:
-                    _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "OUT")
+                if p.game_over: _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "OUT")
 
+        # 更新特效 Timer
         me = players[my_id]
         if getattr(me.shot, 'tetris_timer', 0) > 0: me.shot.tetris_timer -= 1
+        if getattr(me.shot, 'all_clear_timer', 0) > 0: me.shot.all_clear_timer -= 1 # [新增]
         for pid, p in players.items():
             if pid != my_id:
                 if getattr(p.shot, 'tetris_timer', 0) > 0: p.shot.tetris_timer -= 1
+                if getattr(p.shot, 'all_clear_timer', 0) > 0: p.shot.all_clear_timer -= 1 # [新增]
             
         pg.display.update()
         clock.tick(60)

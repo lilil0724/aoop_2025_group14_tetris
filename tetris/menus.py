@@ -6,7 +6,7 @@ import settings
 import network_utils
 from ui import Button
 
-# --- Settings Menu ---
+# --- Settings Menu (保持不變) ---
 def settings_menu(screen):
     pg.display.set_caption("Tetris Battle - Settings")
     font_title = pg.font.SysFont('Comic Sans MS', 50, bold=True)
@@ -19,15 +19,10 @@ def settings_menu(screen):
         status_text = "ON" if settings.SHOW_GHOST else "OFF"
         status_color = (50, 200, 50) if settings.SHOW_GHOST else (200, 50, 50)
         btn_ghost = Button(center_x, center_y, btn_w, btn_h, f"Ghost Piece: {status_text}", "TOGGLE_GHOST", color=status_color)
-        buttons = [btn_ghost, btn_back]
-        
-        # 定義速度顯示文字
         speed_labels = {1: "Slow", 2: "Normal", 3: "Fast", 4: "God (Instant)"}
         current_label = speed_labels.get(settings.AI_SPEED_LEVEL, "Normal")
-        # 根據速度給不同顏色 (綠 -> 黃 -> 橘 -> 紅)
         speed_colors = {1: (50, 200, 50), 2: (200, 200, 50), 3: (200, 100, 50), 4: (200, 50, 50)}
         current_color = speed_colors.get(settings.AI_SPEED_LEVEL, (100, 100, 100))
-        
         btn_speed = Button(center_x, center_y + 80, btn_w, btn_h, f"AI Speed: {current_label}", "TOGGLE_SPEED", color=current_color)
         
         buttons = [btn_ghost, btn_speed, btn_back]
@@ -40,34 +35,28 @@ def settings_menu(screen):
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
             if btn_ghost.is_clicked(event): settings.SHOW_GHOST = not settings.SHOW_GHOST
-            if btn_speed.is_clicked(event):
-                settings.AI_SPEED_LEVEL = (settings.AI_SPEED_LEVEL % 4) + 1
+            if btn_speed.is_clicked(event): settings.AI_SPEED_LEVEL = (settings.AI_SPEED_LEVEL % 4) + 1
             if btn_back.is_clicked(event): return 
-
         for btn in buttons: btn.draw(screen)
         pg.display.update()
 
-# --- Pause Menu ---
+# --- Pause Menu (保持不變) ---
 def pause_menu(screen):
     overlay = pg.Surface((config.width, config.height))
     overlay.set_alpha(150)
     overlay.fill((0, 0, 0))
     screen.blit(overlay, (0, 0))
-
     btn_w, btn_h = 220, 60
     center_x = config.width // 2 - btn_w // 2
     center_y = config.height // 2 - 100
-
     btn_resume = Button(center_x, center_y, btn_w, btn_h, "Resume", "RESUME")
     btn_restart = Button(center_x, center_y + 80, btn_w, btn_h, "Restart", "RESTART", color=(200, 150, 50))
     btn_menu = Button(center_x, center_y + 160, btn_w, btn_h, "Main Menu", "MENU", color=(200, 50, 50))
     buttons = [btn_resume, btn_restart, btn_menu]
-    
     font_pause = pg.font.SysFont('Comic Sans MS', 50, bold=True)
     text_surf = font_pause.render("PAUSED", True, (255, 255, 255))
     text_rect = text_surf.get_rect(center=(config.width//2, center_y - 60))
     screen.blit(text_surf, text_rect)
-    
     pg.display.update()
     while True:
         for event in pg.event.get():
@@ -78,7 +67,7 @@ def pause_menu(screen):
         for btn in buttons: btn.draw(screen)
         pg.display.update()
 
-# --- Main Menu ---
+# --- Main Menu (新增操作說明) ---
 def main_menu(screen, font):
     pg.display.set_caption("Tetris Battle - Menu")
     btn_w, btn_h = 200, 60
@@ -87,7 +76,6 @@ def main_menu(screen, font):
     
     btn_solo = Button(center_x, start_y, btn_w, btn_h, "Solo Mode", "SOLO")
     btn_pvp = Button(center_x, start_y + 80, btn_w, btn_h, "1v1 Local", "PVP", color=(50, 100, 200))
-
     btn_pve = Button(center_x, start_y + 160, btn_w, btn_h, "1vAI Battle", "PVE", color=(200, 50, 50))
     btn_lan = Button(center_x, start_y + 240, btn_w, btn_h, "LAN Battle", "LAN", color=(150, 50, 150))
     btn_settings = Button(center_x, start_y + 320, btn_w, btn_h, "Settings", "SETTINGS", color=(100, 100, 100))
@@ -100,6 +88,10 @@ def main_menu(screen, font):
         title_surf = pg.font.SysFont('Comic Sans MS', 60, bold=True).render("TETRIS BATTLE", True, (255, 215, 0))
         title_rect = title_surf.get_rect(center=(config.width//2, config.height//8))
         screen.blit(title_surf, title_rect)
+        
+        # [新增] 繪製鍵位說明
+        _draw_controls_info(screen, config.width - 320, config.height - 250)
+
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
             for btn in buttons:
@@ -107,10 +99,41 @@ def main_menu(screen, font):
         for btn in buttons: btn.draw(screen)
         pg.display.update()
 
-# --- LAN Menu & Game Over Screen (這些保持不變，為節省篇幅僅省略顯示，你需要保留它們) ---
-# [請確保 lan_menu 和 game_over_screen 函式依然存在於此檔案中，程式碼不變]
+def _draw_controls_info(screen, x, y):
+    """ 輔助函式: 在角落顯示操作鍵位 (針對 Solo/PvE/LAN 模式) """
+    font_title = pg.font.SysFont('Arial', 24, bold=True)
+    font_text = pg.font.SysFont('Arial', 20)
+    
+    bg_rect = pg.Rect(x - 20, y - 20, 300, 220)
+    s = pg.Surface((bg_rect.w, bg_rect.h), pg.SRCALPHA)
+    s.fill((0, 0, 0, 100))
+    screen.blit(s, (bg_rect.x, bg_rect.y))
+    pg.draw.rect(screen, (255, 255, 255), bg_rect, 2)
+    
+    title = font_title.render("CONTROLS (Solo/PvE)", True, (255, 215, 0))
+    screen.blit(title, (x, y))
+    
+    lines = [
+        ("Move", "A / D"),
+        ("Soft Drop", "S"),
+        ("Hard Drop", "SPACE"),
+        ("Rotate CW", "W"),
+        ("Rotate CCW", "L"),
+        ("PVP P2", "Arrow Keys")
+    ]
+    line_height = 28
+    current_y = y + 35
+    for label, key in lines:
+        lbl_surf = font_text.render(label, True, (200, 200, 200))
+        key_surf = font_text.render(key, True, (100, 255, 100))
+        screen.blit(lbl_surf, (x, current_y))
+        key_rect = key_surf.get_rect(topright=(x + 260, current_y))
+        screen.blit(key_surf, key_rect)
+        current_y += line_height
+
+# --- 其他 (LAN, Game Over, AI Selection) 保持不變 ---
 def lan_menu(screen, font):
-    # ... (保持原樣)
+    # (此函式內容請保留原樣，省略以節省篇幅)
     pg.display.set_caption("LAN Battle Setup")
     btn_w, btn_h = 300, 60
     center_x = config.width // 2 - btn_w // 2
@@ -233,7 +256,7 @@ def lan_menu(screen, font):
         pg.display.update()
 
 def game_over_screen(screen, result_data):
-    # ... (保持原樣)
+    # (此函式內容請保留原樣)
     pg.display.set_caption("Game Over")
     font_large = pg.font.SysFont('Comic Sans MS', 50, bold=True)
     font_small = pg.font.SysFont('Arial', 30)
@@ -268,39 +291,25 @@ def game_over_screen(screen, result_data):
         for btn in buttons: btn.draw(screen)
         pg.display.update()
 
-
 def ai_selection_menu(screen, font):
+    # (此函式內容請保留原樣)
     pg.display.set_caption("Select AI Opponent")
-    
     btn_w, btn_h = 320, 60
     center_x = config.width // 2 - btn_w // 2
     start_y = config.height // 3
-    
     btn_weight = Button(center_x, start_y, btn_w, btn_h, "Weighted AI (8-Param)", "WEIGHT", color=(50, 100, 200))
-
-    btn_expert = Button(center_x, start_y + 80, btn_w, btn_h, "Expert AI (Trained)", "EXPERT", color=(200, 50, 50))
+    btn_expert = Button(center_x, start_y + 80, btn_w, btn_h, "Expert AI (Fast)", "EXPERT", color=(200, 50, 50))
     btn_back = Button(center_x, start_y + 200, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
-    
     buttons = [btn_weight, btn_expert, btn_back]
-    
     font_title = pg.font.SysFont('Comic Sans MS', 40, bold=True)
-    
     while True:
         screen.fill(config.background_color)
-        
         title_surf = font_title.render("CHOOSE OPPONENT", True, (255, 255, 255))
         title_rect = title_surf.get_rect(center=(config.width//2, config.height//6))
         screen.blit(title_surf, title_rect)
-        
         for event in pg.event.get():
-            if event.type == pg.QUIT:
-                pg.quit(); sys.exit()
-            
+            if event.type == pg.QUIT: pg.quit(); sys.exit()
             for btn in buttons:
-                if btn.is_clicked(event):
-                    return btn.action_code # 回傳 "WEIGHT", "EXPERT", 或 "BACK"
-                    
-        for btn in buttons:
-            btn.draw(screen)
-            
+                if btn.is_clicked(event): return btn.action_code 
+        for btn in buttons: btn.draw(screen)
         pg.display.update()
