@@ -70,11 +70,10 @@ GARBAGE_INSERT_DELAY = 30  # 垃圾行插入節拍 (30 幀插入一次)
 GARBAGE_LINES_PER_INSERT = 1 # 每次插入 1 行
 GARBAGE_HOLE_REPEAT_PROB = 0.7 # 垃圾洞位沿用機率
 GARBAGE_COLOR = (100, 100, 100) # 垃圾行顏色
-# --- (新增結束) ---
+
 
 
 # shapes: S, Z, I, O, J, L, T
-# (shapes 內容保持不變... )
 shapes = {
     'S': [
         [(0, 0), (0, 1), (1, -1), (1, 0)],
