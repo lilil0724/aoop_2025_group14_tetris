@@ -80,10 +80,8 @@ class AIPlayerNN:
                     else: new_board.append(sim_status[r])
                 for _ in range(lines): new_board.insert(0, [0]*config.columns)
                 
-                # --- 關鍵：讓學生看特徵 ---
                 feats = heuristic_ai_helper.get_tetris_features_v8(new_board, landing_height, lines)
                 
-                # 學生打分數
                 score = self.evaluate_board(feats)
                 
                 if score > best_score:
