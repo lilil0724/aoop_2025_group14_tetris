@@ -73,6 +73,7 @@ def controls_menu(screen):
     ]
     
     waiting_for_key = None # 紀錄當前正在等待輸入的 action key (例如 'P1_LEFT')
+    conflict_info = None # 用於儲存衝突資訊: {'key_code': int, 'new_action': str, 'old_action': str}
     
     while True:
         screen.fill(config.background_color)
@@ -116,12 +117,75 @@ def controls_menu(screen):
         btn_back.draw(screen)
         buttons.append(btn_back)
         
+        # --- 衝突提示視窗 ---
+        if conflict_info:
+            overlay = pg.Surface((config.width, config.height))
+            overlay.set_alpha(200)
+            overlay.fill((0, 0, 0))
+            screen.blit(overlay, (0, 0))
+            
+            # 提示框背景
+            dialog_w, dialog_h = 500, 300
+            dialog_x = config.width // 2 - dialog_w // 2
+            dialog_y = config.height // 2 - dialog_h // 2
+            pg.draw.rect(screen, (50, 50, 50), (dialog_x, dialog_y, dialog_w, dialog_h))
+            pg.draw.rect(screen, (200, 200, 200), (dialog_x, dialog_y, dialog_w, dialog_h), 3)
+            
+            # 提示文字
+            key_name_str = pg.key.name(conflict_info['key_code']).upper()
+            old_action_label = next((l for l, k in actions if k == conflict_info['old_action']), conflict_info['old_action'])
+            
+            msg1 = font_label.render(f"Key '{key_name_str}' is already used by:", True, (255, 255, 255))
+            msg2 = font_title.render(old_action_label, True, (255, 100, 100))
+            msg3 = font_label.render("Do you want to swap keys?", True, (255, 255, 255))
+            
+            screen.blit(msg1, msg1.get_rect(center=(config.width//2, dialog_y + 60)))
+            screen.blit(msg2, msg2.get_rect(center=(config.width//2, dialog_y + 120)))
+            screen.blit(msg3, msg3.get_rect(center=(config.width//2, dialog_y + 180)))
+            
+            # Yes / No 按鈕
+            btn_yes = Button(config.width//2 - 110, dialog_y + 220, 100, 50, "Yes", "YES", color=(50, 150, 50))
+            btn_no = Button(config.width//2 + 10, dialog_y + 220, 100, 50, "No", "NO", color=(150, 50, 50))
+            
+            btn_yes.draw(screen)
+            btn_no.draw(screen)
+            
+            conflict_buttons = [btn_yes, btn_no]
+        
         pg.display.update()
         
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 pg.quit(); sys.exit()
-                
+            
+            # 處理衝突視窗事件
+            if conflict_info:
+                if event.type == pg.MOUSEBUTTONDOWN:
+                    for btn in conflict_buttons:
+                        if btn.is_clicked(event):
+                            if btn.action_code == "YES":
+                                # 執行交換
+                                # 1. 取得目前 action 原本的 key (如果有的話)
+                                current_action = conflict_info['new_action']
+                                old_action = conflict_info['old_action']
+                                target_key = conflict_info['key_code']
+                                
+                                # 2. 取得 current_action 原本的 key
+                                original_key_of_current = settings.KEY_BINDINGS[current_action]
+                                
+                                # 3. 交換
+                                settings.KEY_BINDINGS[current_action] = target_key
+                                settings.KEY_BINDINGS[old_action] = original_key_of_current
+                                
+                                conflict_info = None
+                                waiting_for_key = None
+                                
+                            elif btn.action_code == "NO":
+                                # 取消
+                                conflict_info = None
+                                waiting_for_key = None # 也可以保持 waiting 狀態讓使用者重選，這裡選擇取消
+                continue # 衝突視窗開啟時，不處理其他事件
+
             if event.type == pg.MOUSEBUTTONDOWN:
                 if waiting_for_key:
                     # 如果正在等待按鍵，點擊滑鼠取消等待
@@ -138,9 +202,27 @@ def controls_menu(screen):
                             
             if event.type == pg.KEYDOWN:
                 if waiting_for_key:
-                    if event.key != pg.K_ESCAPE: # 允許 ESC 取消 (或者也可以綁定 ESC)
-                        settings.KEY_BINDINGS[waiting_for_key] = event.key
-                    waiting_for_key = None
+                    if event.key != pg.K_ESCAPE:
+                        # 檢查衝突
+                        conflict_action = None
+                        for act, code in settings.KEY_BINDINGS.items():
+                            if code == event.key and act != waiting_for_key:
+                                conflict_action = act
+                                break
+                        
+                        if conflict_action:
+                            # 發現衝突，顯示提示
+                            conflict_info = {
+                                'key_code': event.key,
+                                'new_action': waiting_for_key,
+                                'old_action': conflict_action
+                            }
+                        else:
+                            # 無衝突，直接綁定
+                            settings.KEY_BINDINGS[waiting_for_key] = event.key
+                            waiting_for_key = None
+                    else:
+                        waiting_for_key = None
 
 # --- 暫停選單 ---
 
