@@ -9,7 +9,7 @@ rows = 20
 columns = 10
 
 # --- 1v1 Layout Configuration ---
-GARBAGE_BAR_WIDTH = 2 * unit # <-- 新增垃圾條寬度
+GARBAGE_BAR_WIDTH = 2 * unit 
 BOARD_WIDTH = columns * grid
 INFO_PANEL_WIDTH = 50 * unit
 
