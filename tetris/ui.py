@@ -179,7 +179,7 @@ def draw_player_ui_surface(shot, piece, next_piece, font, player_name="Player"):
     if getattr(shot, 'tetris_timer', 0) > 0:
         _draw_effect_text(surface, "TETRIS!", (255, 255, 255), shot.tetris_timer, draw_x, draw_y)
 
-    # 2. [新增] All Clear Effect (金色)
+    #  All Clear Effect 
     if getattr(shot, 'all_clear_timer', 0) > 0:
         _draw_effect_text(surface, "ALL CLEAR!", (255, 215, 0), shot.all_clear_timer, draw_x, draw_y, offset_y=60)
 
