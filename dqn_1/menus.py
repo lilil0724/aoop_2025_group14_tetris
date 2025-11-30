@@ -357,7 +357,9 @@ def lan_menu(screen, font):
     # Input box for IP (Move up slightly or keep)
     ip_text = "127.0.0.1"
     input_active = False
-    input_rect = pg.Rect(center_x, start_y + 160, btn_w, 40)
+    # Make input box bigger
+    input_w, input_h = 400, 60
+    input_rect = pg.Rect(config.width // 2 - input_w // 2, start_y + 160, input_w, input_h)
     
     net_mgr = network_utils.NetworkManager()
     
