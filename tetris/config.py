@@ -34,7 +34,7 @@ P2_NEXT_PIECE_POS = (P2_INFO_X + 22*unit, rows * grid // 2 - 30*unit)
 # height = rows * grid
 width = 1600 
 height = 900
-# --- End 1v1 Config ----
+# --- End 1v1 Config -----
 
 
 # others
