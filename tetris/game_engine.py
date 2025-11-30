@@ -171,14 +171,14 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                         if event.key == pg.K_RSHIFT: Handler.instantDrop(p2.shot, p2.piece)
                 
                 else:
-                    # [修改] SOLO, PVE, LAN -> 使用 WASD + L + Space
+                    # 使用 WASD + L + Space
                     p_local = players[my_id]
                     if not p_local.game_over:
                         # W: Rotate CW
                         if event.key == pg.K_w: 
                             Handler.rotate(p_local.shot, p_local.piece)
                         
-                        # L: Rotate CCW (新需求)
+                        # L: Rotate CCW 
                         if event.key == pg.K_l:
                             Handler.rotateCCW(p_local.shot, p_local.piece)
 
@@ -211,7 +211,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             for k in p.key_ticker:
                 if p.key_ticker[k] > 0: p.key_ticker[k] -= 1
         
-        # [修改] DAS 也要依照模式分配
+        # DAS 也要依照模式分配
         if mode == 'PVP':
             # PVP 模式下，P1 用 WASD，P2 用 Arrows
             do_das(players[0], pg.K_a, pg.K_d, pg.K_s)
