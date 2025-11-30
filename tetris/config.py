@@ -1,5 +1,5 @@
 import pygame as pg
-import math # <-- 新增
+import math 
 
 # scale unit
 unit = 6
