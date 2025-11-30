@@ -5,6 +5,8 @@ import config
 from menus import main_menu, settings_menu, ai_selection_menu, lan_menu, game_over_screen
 from game_engine import run_game
 
+import settings
+
 def main():
     pg.init()
     pg.font.init()
@@ -26,7 +28,7 @@ def main():
         bgm_path = os.path.join(base_path, '2_23_AM_2.mp3')
         if os.path.exists(bgm_path):
             pg.mixer.music.load(bgm_path)
-            pg.mixer.music.set_volume(0.5) # Set volume to 50%
+            pg.mixer.music.set_volume(settings.VOLUME) # Set volume from settings
             pg.mixer.music.play(-1) # Loop indefinitely
             print(f"BGM loaded: {bgm_path}")
         else:

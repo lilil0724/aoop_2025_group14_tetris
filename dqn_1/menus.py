@@ -5,7 +5,7 @@ import threading
 import config
 import settings
 import network_utils
-from ui import Button
+from ui import Button, Slider
 
 # --- 設定選單 ---
  
@@ -13,6 +13,7 @@ def settings_menu(screen):
     pg.display.set_caption("Tetris Battle - Settings")
     
     font_title = pg.font.SysFont('Comic Sans MS', 50, bold=True)
+    font_label = pg.font.SysFont('Arial', 24)
     
     btn_w, btn_h = 300, 60
     center_x = config.width // 2 - btn_w // 2
@@ -21,6 +22,12 @@ def settings_menu(screen):
     btn_controls = Button(center_x, center_y + 80, btn_w, btn_h, "Controls", "CONTROLS", color=(50, 100, 200))
 
     btn_back = Button(center_x, center_y + 160, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
+    
+    # Volume Slider
+    slider_w, slider_h = 300, 10
+    slider_x = config.width // 2 - slider_w // 2
+    slider_y = center_y + 260
+    volume_slider = Slider(slider_x, slider_y, slider_w, slider_h, 0.0, 1.0, settings.VOLUME)
     
     while True:
         status_text = "ON" if settings.SHOW_GHOST else "OFF"
@@ -35,8 +42,20 @@ def settings_menu(screen):
         title_rect = title_surf.get_rect(center=(config.width//2, config.height//6))
         screen.blit(title_surf, title_rect)
         
+        # Draw Volume Label
+        vol_surf = font_label.render(f"Volume: {int(settings.VOLUME * 100)}%", True, (200, 200, 200))
+        vol_rect = vol_surf.get_rect(center=(config.width//2, slider_y - 30))
+        screen.blit(vol_surf, vol_rect)
+        
+        # Draw Slider
+        volume_slider.draw(screen)
+        
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
+            
+            if volume_slider.handle_event(event):
+                settings.VOLUME = volume_slider.value
+                pg.mixer.music.set_volume(settings.VOLUME)
             
             if btn_ghost.is_clicked(event):
                 settings.SHOW_GHOST = not settings.SHOW_GHOST
