@@ -13,27 +13,44 @@ from ai_heuristic import get_ai_move_heuristic
 from ai_weighted import WeightedAI
 from menus import pause_menu
 
+# 7-Bag 生成器輔助函式
+def get_new_bag():
+    bag = list(config.shapes.keys())
+    random.shuffle(bag)
+    return bag
+
 def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
     
     class PlayerContext:
         def __init__(self, is_local=False, is_ai=False, name="Player"):
             self.shot = shots.Shot()
             self.shot.tetris_timer = 0
-            self.piece = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
-            self.next_piece = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
+            
+            # 7-Bag 機制初始化
+            self.bag = get_new_bag() 
+            self.piece = pieces.Piece(5, 0, self.bag.pop())
+            
+            if not self.bag: self.bag = get_new_bag()
+            self.next_piece = pieces.Piece(5, 0, self.bag.pop())
+            
             self.game_over = False
             self.is_local = is_local
             self.is_ai = is_ai
             self.name = name
             
             self.counter = 0
-            self.key_ticker = {k: 0 for k in [pg.K_a, pg.K_s, pg.K_d, pg.K_w, pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN, pg.K_UP]}
+            # [修改] key_ticker 加入所需的按鍵 (WASD, Arrows, L, Space)
+            self.key_ticker = {k: 0 for k in [
+                pg.K_a, pg.K_s, pg.K_d, pg.K_w, 
+                pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN, pg.K_UP,
+                pg.K_l, pg.K_SPACE
+            ]}
             
             # AI 狀態
             self.ai_target_move = None 
             self.ai_act_timer = 0
             self.ai_act_interval = 5 
-            self.ai_agent = None # 用來儲存 AI 物件或標記
+            self.ai_agent = None 
 
     players = {}
     my_id = 0
@@ -61,13 +78,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
     elif mode == 'PVE':
         players[0] = PlayerContext(is_local=True, name="Player 1")
         
-        # 讀取設定值
-        speed_map = {
-            1: 15,  # Slow
-            2: 8,   # Normal
-            3: 3,   # Fast
-            4: 0    # God
-        }
+        speed_map = { 1: 15, 2: 8, 3: 3, 4: 0 }
         selected_speed_delay = speed_map.get(settings.AI_SPEED_LEVEL, 8)
         
         if ai_mode == 'WEIGHT':
@@ -77,8 +88,6 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             print(f"Loaded Weighted AI. Speed Level: {settings.AI_SPEED_LEVEL}")
             
         elif ai_mode == 'EXPERT': 
-            # [修復 2] 這裡原本錯誤呼叫了 get_ai_move_heuristic() 導致閃退
-            # 我們只需要標記它是 EXPERT，實際運算在主迴圈直接呼叫函式
             players[1] = PlayerContext(is_local=False, is_ai=True, name="Expert AI")
             players[1].ai_agent = "EXPERT_FUNC" 
             players[1].ai_act_interval = selected_speed_delay
@@ -136,27 +145,23 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 }
                 net_mgr.send(local_data)
 
-        # --- Event Handling ---
+        # --- Event Handling (控制鍵位修改) ---
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE: paused = True
-                p1 = players[my_id]
-                if not p1.game_over:
-                    if event.key == pg.K_w: Handler.rotate(p1.shot, p1.piece)
-                    if event.key == pg.K_s: p1.key_ticker[pg.K_s] = 13; Handler.drop(p1.shot, p1.piece)
-                    if event.key == pg.K_a: p1.key_ticker[pg.K_a] = 13; Handler.moveLeft(p1.shot, p1.piece)
-                    if event.key == pg.K_d: p1.key_ticker[pg.K_d] = 13; Handler.moveRight(p1.shot, p1.piece)
-                    
-                    # [修改 4] 按鍵綁定: 除了 PVP 外，Space 也可以做 Instant Drop
-                    is_instant_drop = False
-                    if event.key == pg.K_LSHIFT: is_instant_drop = True
-                    if mode != 'PVP' and event.key == pg.K_SPACE: is_instant_drop = True
-                    
-                    if is_instant_drop:
-                        Handler.instantDrop(p1.shot, p1.piece)
                 
+                # --- 模式區分 ---
                 if mode == 'PVP':
+                    # [PVP 維持不變] P1: WASD, P2: Arrows
+                    p1 = players[0]
+                    if not p1.game_over:
+                        if event.key == pg.K_w: Handler.rotate(p1.shot, p1.piece)
+                        if event.key == pg.K_s: p1.key_ticker[pg.K_s] = 13; Handler.drop(p1.shot, p1.piece)
+                        if event.key == pg.K_a: p1.key_ticker[pg.K_a] = 13; Handler.moveLeft(p1.shot, p1.piece)
+                        if event.key == pg.K_d: p1.key_ticker[pg.K_d] = 13; Handler.moveRight(p1.shot, p1.piece)
+                        if event.key == pg.K_LSHIFT: Handler.instantDrop(p1.shot, p1.piece)
+                    
                     p2 = players[1]
                     if not p2.game_over:
                         if event.key == pg.K_UP: Handler.rotate(p2.shot, p2.piece)
@@ -164,8 +169,39 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                         if event.key == pg.K_LEFT: p2.key_ticker[pg.K_LEFT] = 13; Handler.moveLeft(p2.shot, p2.piece)
                         if event.key == pg.K_RIGHT: p2.key_ticker[pg.K_RIGHT] = 13; Handler.moveRight(p2.shot, p2.piece)
                         if event.key == pg.K_RSHIFT: Handler.instantDrop(p2.shot, p2.piece)
+                
+                else:
+                    # [修改] SOLO, PVE, LAN -> 使用 WASD + L + Space
+                    p_local = players[my_id]
+                    if not p_local.game_over:
+                        # W: Rotate CW
+                        if event.key == pg.K_w: 
+                            Handler.rotate(p_local.shot, p_local.piece)
+                        
+                        # L: Rotate CCW (新需求)
+                        if event.key == pg.K_l:
+                            Handler.rotateCCW(p_local.shot, p_local.piece)
 
-        # --- DAS ---
+                        # S: Soft Drop
+                        if event.key == pg.K_s: 
+                            p_local.key_ticker[pg.K_s] = 13
+                            Handler.drop(p_local.shot, p_local.piece)
+                        
+                        # A: Move Left
+                        if event.key == pg.K_a:
+                            p_local.key_ticker[pg.K_a] = 13
+                            Handler.moveLeft(p_local.shot, p_local.piece)
+                            
+                        # D: Move Right
+                        if event.key == pg.K_d:
+                            p_local.key_ticker[pg.K_d] = 13
+                            Handler.moveRight(p_local.shot, p_local.piece)
+                        
+                        # Space: Hard Drop (新需求)
+                        if event.key == pg.K_SPACE:
+                            Handler.instantDrop(p_local.shot, p_local.piece)
+
+        # --- DAS (Delayed Auto Shift) ---
         keys = pg.key.get_pressed()
         def do_das(p, k_l, k_r, k_d):
             if p.game_over: return
@@ -174,8 +210,15 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             if keys[k_d] and p.key_ticker[k_d] == 0: p.key_ticker[k_d] = 6; Handler.drop(p.shot, p.piece)
             for k in p.key_ticker:
                 if p.key_ticker[k] > 0: p.key_ticker[k] -= 1
-        do_das(players[my_id], pg.K_a, pg.K_d, pg.K_s)
-        if mode == 'PVP': do_das(players[1], pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN)
+        
+        # [修改] DAS 也要依照模式分配
+        if mode == 'PVP':
+            # PVP 模式下，P1 用 WASD，P2 用 Arrows
+            do_das(players[0], pg.K_a, pg.K_d, pg.K_s)
+            do_das(players[1], pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN)
+        else:
+            # 其他模式下，Local Player 改用 WASD
+            do_das(players[my_id], pg.K_a, pg.K_d, pg.K_s)
 
         # --- Game Logic ---
         for pid, p in players.items():
@@ -189,12 +232,9 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                         p.ai_act_timer = 0
                         
                         if p.ai_target_move is None:
-                            # 判斷使用哪種 AI
                             if hasattr(p.ai_agent, 'find_best_move'):
-                                # Weighted AI
                                 p.ai_target_move = p.ai_agent.find_best_move(p.shot, p.piece)
                             else:
-                                # Heuristic / Expert AI (使用函式)
                                 p.ai_target_move = get_ai_move_heuristic(p.shot, p.piece)
                                 
                             if p.ai_target_move is None:
@@ -247,11 +287,6 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                     p.shot.pending_garbage -= cancel
                     atk -= cancel
                 
-                # [問題 3 回答] 垃圾行邏輯
-                # 這裡的邏輯是: 當沒有消行 (clears == 0) 時，將垃圾行推入。
-                # 這與 AI 的速度無關，而是與「回合(塊)」有關。
-                # 如果 AI 變慢，它下塊變慢，垃圾進入的頻率自然變慢，
-                # 所以緩衝時間在「邏輯上」是等比例的，不會因為 AI 慢就被瞬間淹沒。
                 if clears == 0 and p.shot.pending_garbage > 0:
                     Handler.insertGarbage(p.shot, p.shot.pending_garbage)
                     p.shot.pending_garbage = 0
@@ -266,7 +301,9 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                             players[target_id].shot.pending_garbage += atk
                         
                 p.piece = p.next_piece
-                p.next_piece = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
+                if not p.bag:
+                    p.bag = get_new_bag()
+                p.next_piece = pieces.Piece(5, 0, p.bag.pop())
                 
                 if Handler.isDefeat(p.shot, p.piece):
                     p.game_over = True
@@ -288,77 +325,57 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             else:
                 return "GAME_OVER", {"winner": "Solo", "score": players[0].shot.score}
 
-        # --- Rendering (修正版) ---
-        # [修改 1] 介面佈局邏輯
+        # --- Rendering ---
         screen.fill(config.background_color)
         total_players = len(players)
         
-        # 取得第一個玩家的畫面來計算尺寸 (假設大家尺寸一樣)
         temp_surf = draw_player_ui_surface(players[my_id].shot, players[my_id].piece, players[my_id].next_piece, font, players[my_id].name)
         surf_w = temp_surf.get_width()
         surf_h = temp_surf.get_height()
         
         if total_players == 1:
-            # SOLO 模式: 絕對置中
             p = players[my_id]
             surf = draw_player_ui_surface(p.shot, p.piece, p.next_piece, font, p.name)
-            
             center_x = (config.width - surf_w) // 2
             center_y = (config.height - surf_h) // 2
-            # 確保不會太上面
             if center_y < 20: center_y = 20
-            
             screen.blit(surf, (center_x, center_y))
-            
             if p.game_over:
                 _draw_game_over_overlay(screen, surf, center_x, center_y, font, "DEFEAT")
 
         elif total_players == 2:
-            # 1v1 / 1vAI 模式: 雙人等分置中
-            # 計算兩個畫面加上中間間距的總寬度
             gap = 50
             total_w = surf_w * 2 + gap
             start_x = (config.width - total_w) // 2
             y_pos = (config.height - surf_h) // 2
             if y_pos < 20: y_pos = 20
-            
-            # 排序: 本地玩家(0)在左，對手(1)在右
             sorted_pids = sorted(players.keys())
-            
             for i, pid in enumerate(sorted_pids):
                 p = players[pid]
                 surf = draw_player_ui_surface(p.shot, p.piece, p.next_piece, font, p.name)
-                
                 x_pos = start_x + i * (surf_w + gap)
                 screen.blit(surf, (x_pos, y_pos))
-                
                 if p.game_over:
                      _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "DEFEAT")
                      
         else:
-            # LAN 多人模式 (超過2人): 維持縮放邏輯，但置中排列
             sorted_pids = [my_id] + sorted([pid for pid in players if pid != my_id])
             scale = 0.75
             scaled_w = int(surf_w * scale)
             scaled_h = int(surf_h * scale)
             gap = 20
-            
             total_w = len(players) * scaled_w + (len(players)-1) * gap
             start_x = (config.width - total_w) // 2
             y_pos = 50
-            
             for i, pid in enumerate(sorted_pids):
                 p = players[pid]
                 surf = draw_player_ui_surface(p.shot, p.piece, p.next_piece, font, p.name)
                 surf = pg.transform.smoothscale(surf, (scaled_w, scaled_h))
-                
                 x_pos = start_x + i * (scaled_w + gap)
                 screen.blit(surf, (x_pos, y_pos))
-                
                 if p.game_over:
                     _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "OUT")
 
-        # Tetris timer update
         me = players[my_id]
         if getattr(me.shot, 'tetris_timer', 0) > 0: me.shot.tetris_timer -= 1
         for pid, p in players.items():
@@ -369,7 +386,6 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
         clock.tick(60)
 
 def _draw_game_over_overlay(screen, surf, x, y, font, text_str):
-    """ 輔助函式: 繪製遊戲結束遮罩 """
     s = pg.Surface(surf.get_size(), pg.SRCALPHA)
     s.fill((0,0,0,150))
     screen.blit(s, (x, y))
