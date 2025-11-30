@@ -8,7 +8,7 @@ background_color = (33, 47, 60)
 rows = 20
 columns = 10
 
-# --- 1v1 Layout Configuration ---.
+# --- 1v1 Layout Configuration ---..
 GARBAGE_BAR_WIDTH = 2 * unit 
 BOARD_WIDTH = columns * grid
 INFO_PANEL_WIDTH = 50 * unit
