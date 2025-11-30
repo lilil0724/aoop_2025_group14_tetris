@@ -110,7 +110,6 @@ shapes = {
     ],
 }
 
-# (shape_colors 內容保持不變... )
 SHADOW = (192, 192, 192)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
