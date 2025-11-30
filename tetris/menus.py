@@ -6,7 +6,7 @@ import settings
 import network_utils
 from ui import Button
 
-# --- Settings Menu (保持不變) ---
+# --- Settings Menu ---
 def settings_menu(screen):
     pg.display.set_caption("Tetris Battle - Settings")
     font_title = pg.font.SysFont('Comic Sans MS', 50, bold=True)
@@ -19,19 +19,19 @@ def settings_menu(screen):
         status_text = "ON" if settings.SHOW_GHOST else "OFF"
         status_color = (50, 200, 50) if settings.SHOW_GHOST else (200, 50, 50)
         btn_ghost = Button(center_x, center_y, btn_w, btn_h, f"Ghost Piece: {status_text}", "TOGGLE_GHOST", color=status_color)
+        
+        # 定義速度顯示文字
         speed_labels = {1: "Slow", 2: "Normal", 3: "Fast", 4: "God (Instant)"}
         current_label = speed_labels.get(settings.AI_SPEED_LEVEL, "Normal")
         speed_colors = {1: (50, 200, 50), 2: (200, 200, 50), 3: (200, 100, 50), 4: (200, 50, 50)}
         current_color = speed_colors.get(settings.AI_SPEED_LEVEL, (100, 100, 100))
         btn_speed = Button(center_x, center_y + 80, btn_w, btn_h, f"AI Speed: {current_label}", "TOGGLE_SPEED", color=current_color)
-        
         buttons = [btn_ghost, btn_speed, btn_back]
         
         screen.fill(config.background_color)
         title_surf = font_title.render("SETTINGS", True, (255, 255, 255))
         title_rect = title_surf.get_rect(center=(config.width//2, config.height//6))
         screen.blit(title_surf, title_rect)
-        
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
             if btn_ghost.is_clicked(event): settings.SHOW_GHOST = not settings.SHOW_GHOST
@@ -40,7 +40,7 @@ def settings_menu(screen):
         for btn in buttons: btn.draw(screen)
         pg.display.update()
 
-# --- Pause Menu (保持不變) ---
+# --- Pause Menu ---
 def pause_menu(screen):
     overlay = pg.Surface((config.width, config.height))
     overlay.set_alpha(150)
@@ -67,7 +67,7 @@ def pause_menu(screen):
         for btn in buttons: btn.draw(screen)
         pg.display.update()
 
-# --- Main Menu (新增操作說明) ---
+# --- Main Menu ---
 def main_menu(screen, font):
     pg.display.set_caption("Tetris Battle - Menu")
     btn_w, btn_h = 200, 60
@@ -80,7 +80,6 @@ def main_menu(screen, font):
     btn_lan = Button(center_x, start_y + 240, btn_w, btn_h, "LAN Battle", "LAN", color=(150, 50, 150))
     btn_settings = Button(center_x, start_y + 320, btn_w, btn_h, "Settings", "SETTINGS", color=(100, 100, 100))
     btn_exit = Button(center_x, start_y + 400, btn_w, btn_h, "Exit Game", "EXIT", color=(50, 50, 50))
-    
     buttons = [btn_solo, btn_pvp, btn_pve, btn_lan, btn_settings, btn_exit]
 
     while True:
@@ -89,7 +88,6 @@ def main_menu(screen, font):
         title_rect = title_surf.get_rect(center=(config.width//2, config.height//8))
         screen.blit(title_surf, title_rect)
         
-        # [新增] 繪製鍵位說明
         _draw_controls_info(screen, config.width - 320, config.height - 250)
 
         for event in pg.event.get():
@@ -100,10 +98,8 @@ def main_menu(screen, font):
         pg.display.update()
 
 def _draw_controls_info(screen, x, y):
-    """ 輔助函式: 在角落顯示操作鍵位 (針對 Solo/PvE/LAN 模式) """
     font_title = pg.font.SysFont('Arial', 24, bold=True)
     font_text = pg.font.SysFont('Arial', 20)
-    
     bg_rect = pg.Rect(x - 20, y - 20, 300, 220)
     s = pg.Surface((bg_rect.w, bg_rect.h), pg.SRCALPHA)
     s.fill((0, 0, 0, 100))
@@ -119,8 +115,9 @@ def _draw_controls_info(screen, x, y):
         ("Hard Drop", "SPACE"),
         ("Rotate CW", "W"),
         ("Rotate CCW", "L"),
-        ("PVP P2", "Arrow Keys")
+        ("PVP P2", "Arrows / R-SHIFT")
     ]
+    
     line_height = 28
     current_y = y + 35
     for label, key in lines:
@@ -131,9 +128,8 @@ def _draw_controls_info(screen, x, y):
         screen.blit(key_surf, key_rect)
         current_y += line_height
 
-# --- 其他 (LAN, Game Over, AI Selection) 保持不變 ---
+# --- LAN Menu ---
 def lan_menu(screen, font):
-    # (此函式內容請保留原樣，省略以節省篇幅)
     pg.display.set_caption("LAN Battle Setup")
     btn_w, btn_h = 300, 60
     center_x = config.width // 2 - btn_w // 2
@@ -142,11 +138,9 @@ def lan_menu(screen, font):
     btn_join = Button(center_x, start_y + 80, btn_w, btn_h, "Join Game", "JOIN", color=(50, 100, 200))
     btn_back = Button(center_x, start_y + 400, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
     
-    # Player Count Buttons (for Host)
     btn_2p = Button(center_x - 110, start_y + 300, 60, 60, "2P", "2P", color=(100, 100, 100))
     btn_3p = Button(center_x, start_y + 300, 60, 60, "3P", "3P", color=(100, 100, 100))
     btn_4p = Button(center_x + 110, start_y + 300, 60, 60, "4P", "4P", color=(100, 100, 100))
-    
     player_btns = [btn_2p, btn_3p, btn_4p]
     selected_players = 2
     btn_2p.color = (50, 200, 50)
@@ -255,35 +249,74 @@ def lan_menu(screen, font):
         for btn in buttons: btn.draw(screen)
         pg.display.update()
 
-def game_over_screen(screen, result_data):
-    # (此函式內容請保留原樣)
+# --- Game Over Screen (修正為接收 List) ---
+def game_over_screen(screen, results):
     pg.display.set_caption("Game Over")
-    font_large = pg.font.SysFont('Comic Sans MS', 50, bold=True)
-    font_small = pg.font.SysFont('Arial', 30)
-    btn_restart = Button(config.width//2 - 100, config.height//2 + 80, 200, 60, "Play Again", "RESTART")
-    btn_menu = Button(config.width//2 - 100, config.height//2 + 160, 200, 60, "Main Menu", "MENU", color=(150, 50, 50))
+    
+    font_title = pg.font.SysFont('Comic Sans MS', 50, bold=True)
+    font_label = pg.font.SysFont('Arial', 24)
+    font_val = pg.font.SysFont('Arial', 30, bold=True)
+    
+    btn_restart = Button(config.width//2 - 100, config.height - 150, 200, 60, "Play Again", "RESTART")
+    btn_menu = Button(config.width//2 - 100, config.height - 70, 200, 60, "Main Menu", "MENU", color=(150, 50, 50))
     buttons = [btn_restart, btn_menu]
+    
     while True:
         s = pg.Surface((config.width, config.height))
-        s.set_alpha(10)
-        s.fill((0,0,0))
-        screen.blit(s, (0,0))
-        win_text = result_data.get("winner", "Game Over")
-        win_surf = font_large.render(win_text, True, (255, 50, 50))
-        win_rect = win_surf.get_rect(center=(config.width//2, config.height//4))
-        score_text = f"Your Score: {result_data.get('score', 0)}"
-        lines_text = f"Lines Cleared: {result_data.get('lines', 0)}"
-        score_surf = font_small.render(score_text, True, (255, 255, 255))
-        lines_surf = font_small.render(lines_text, True, (255, 255, 255))
-        score_rect = score_surf.get_rect(center=(config.width//2, config.height//4 + 60))
-        lines_rect = lines_surf.get_rect(center=(config.width//2, config.height//4 + 100))
-        bg_rect = pg.Rect(0, 0, 400, 250)
-        bg_rect.center = (config.width//2, config.height//4 + 50)
-        pg.draw.rect(screen, (30, 30, 30), bg_rect, border_radius=10)
-        pg.draw.rect(screen, (255, 255, 255), bg_rect, 2, border_radius=10)
-        screen.blit(win_surf, win_rect)
-        screen.blit(score_surf, score_rect)
-        screen.blit(lines_surf, lines_rect)
+        s.set_alpha(10) 
+        screen.fill((20, 20, 20))
+        
+        title_surf = font_title.render("GAME FINISHED", True, (255, 255, 255))
+        title_rect = title_surf.get_rect(center=(config.width//2, 80))
+        screen.blit(title_surf, title_rect)
+        
+        count = len(results)
+        card_w = 300
+        card_h = 250
+        gap = 50
+        total_w = count * card_w + (count - 1) * gap
+        start_x = (config.width - total_w) // 2
+        start_y = config.height // 2 - 100
+        
+        for i, data in enumerate(results):
+            x = start_x + i * (card_w + gap)
+            y = start_y
+            
+            is_winner = data['is_winner']
+            if is_winner:
+                border_color = (255, 215, 0) # Gold
+                header_text = "WINNER"
+                header_color = (255, 215, 0)
+            else:
+                border_color = (100, 100, 100) # Grey
+                header_text = "LOSER"
+                header_color = (200, 50, 50) # Red
+            
+            card_rect = pg.Rect(x, y, card_w, card_h)
+            pg.draw.rect(screen, (40, 40, 40), card_rect, border_radius=15)
+            pg.draw.rect(screen, border_color, card_rect, 3, border_radius=15)
+            
+            head_surf = font_title.render(header_text, True, header_color)
+            head_surf = pg.transform.smoothscale(head_surf, (int(head_surf.get_width()*0.8), int(head_surf.get_height()*0.8)))
+            head_rect = head_surf.get_rect(center=(x + card_w//2, y + 40))
+            screen.blit(head_surf, head_rect)
+            
+            name_surf = font_label.render(data['name'], True, (200, 200, 200))
+            name_rect = name_surf.get_rect(center=(x + card_w//2, y + 90))
+            screen.blit(name_surf, name_rect)
+            
+            pg.draw.line(screen, (80, 80, 80), (x + 20, y + 110), (x + card_w - 20, y + 110), 1)
+            
+            score_lbl = font_label.render("Score", True, (150, 150, 150))
+            score_val = font_val.render(str(data['score']), True, (255, 255, 255))
+            screen.blit(score_lbl, (x + 30, y + 130))
+            screen.blit(score_val, score_val.get_rect(topright=(x + card_w - 30, y + 130)))
+            
+            lines_lbl = font_label.render("Lines", True, (150, 150, 150))
+            lines_val = font_val.render(str(data['lines']), True, (255, 255, 255))
+            screen.blit(lines_lbl, (x + 30, y + 180))
+            screen.blit(lines_val, lines_val.get_rect(topright=(x + card_w - 30, y + 180)))
+
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
             for btn in buttons:
@@ -292,24 +325,28 @@ def game_over_screen(screen, result_data):
         pg.display.update()
 
 def ai_selection_menu(screen, font):
-    # (此函式內容請保留原樣)
     pg.display.set_caption("Select AI Opponent")
+    
     btn_w, btn_h = 320, 60
     center_x = config.width // 2 - btn_w // 2
     start_y = config.height // 3
+    
     btn_weight = Button(center_x, start_y, btn_w, btn_h, "Weighted AI (8-Param)", "WEIGHT", color=(50, 100, 200))
     btn_expert = Button(center_x, start_y + 80, btn_w, btn_h, "Expert AI (Fast)", "EXPERT", color=(200, 50, 50))
     btn_back = Button(center_x, start_y + 200, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
     buttons = [btn_weight, btn_expert, btn_back]
     font_title = pg.font.SysFont('Comic Sans MS', 40, bold=True)
+    
     while True:
         screen.fill(config.background_color)
         title_surf = font_title.render("CHOOSE OPPONENT", True, (255, 255, 255))
         title_rect = title_surf.get_rect(center=(config.width//2, config.height//6))
         screen.blit(title_surf, title_rect)
+        
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
             for btn in buttons:
                 if btn.is_clicked(event): return btn.action_code 
+                    
         for btn in buttons: btn.draw(screen)
         pg.display.update()

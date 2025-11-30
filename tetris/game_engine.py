@@ -13,7 +13,7 @@ from ai_heuristic import get_ai_move_heuristic
 from ai_weighted import WeightedAI
 from menus import pause_menu
 
-# 7-Bag 生成器輔助函式
+# 7-Bag 生成器
 def get_new_bag():
     bag = list(config.shapes.keys())
     random.shuffle(bag)
@@ -26,10 +26,9 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             self.shot = shots.Shot()
             self.shot.tetris_timer = 0
             
-            # 7-Bag 機制初始化
+            # 7-Bag 初始化
             self.bag = get_new_bag() 
             self.piece = pieces.Piece(5, 0, self.bag.pop())
-            
             if not self.bag: self.bag = get_new_bag()
             self.next_piece = pieces.Piece(5, 0, self.bag.pop())
             
@@ -39,14 +38,13 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             self.name = name
             
             self.counter = 0
-            # key_ticker
+            # 定義所有可能用到的按鍵 ticker
             self.key_ticker = {k: 0 for k in [
                 pg.K_a, pg.K_s, pg.K_d, pg.K_w, 
                 pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN, pg.K_UP,
-                pg.K_l, pg.K_SPACE
+                pg.K_l, pg.K_SPACE, pg.K_RSHIFT
             ]}
             
-            # AI 狀態
             self.ai_target_move = None 
             self.ai_act_timer = 0
             self.ai_act_interval = 5 
@@ -85,13 +83,11 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             players[1].ai_agent = WeightedAI() 
             players[1].ai_act_interval = selected_speed_delay
             print(f"Loaded Weighted AI. Speed Level: {settings.AI_SPEED_LEVEL}")
-            
         elif ai_mode == 'EXPERT': 
             players[1] = PlayerContext(is_local=False, is_ai=True, name="Expert AI")
             players[1].ai_agent = "EXPERT_FUNC" 
             players[1].ai_act_interval = selected_speed_delay
             print(f"Loaded Expert AI. Speed Level: {settings.AI_SPEED_LEVEL}")
-            
         else:
             players[1] = PlayerContext(is_local=False, is_ai=True, name="Basic AI")
             players[1].ai_act_interval = selected_speed_delay
@@ -152,23 +148,23 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 
                 # --- 模式區分 ---
                 if mode == 'PVP':
-                    # P1: WASD
+                    # P1: WASD (維持不變)
                     p1 = players[0]
                     if not p1.game_over:
                         if event.key == pg.K_w: Handler.rotate(p1.shot, p1.piece)
                         if event.key == pg.K_s: p1.key_ticker[pg.K_s] = 13; Handler.drop(p1.shot, p1.piece)
                         if event.key == pg.K_a: p1.key_ticker[pg.K_a] = 13; Handler.moveLeft(p1.shot, p1.piece)
                         if event.key == pg.K_d: p1.key_ticker[pg.K_d] = 13; Handler.moveRight(p1.shot, p1.piece)
-                        if event.key == pg.K_LSHIFT: Handler.instantDrop(p1.shot, p1.piece)
+                        if event.key == pg.K_LSHIFT: Handler.instantDrop(p1.shot, p1.piece) # P1 PVP Hard Drop
                     
-                    # P2: Arrows
+                    # P2: Arrows + Right Shift
                     p2 = players[1]
                     if not p2.game_over:
                         if event.key == pg.K_UP: Handler.rotate(p2.shot, p2.piece)
                         if event.key == pg.K_DOWN: p2.key_ticker[pg.K_DOWN] = 13; Handler.drop(p2.shot, p2.piece)
                         if event.key == pg.K_LEFT: p2.key_ticker[pg.K_LEFT] = 13; Handler.moveLeft(p2.shot, p2.piece)
                         if event.key == pg.K_RIGHT: p2.key_ticker[pg.K_RIGHT] = 13; Handler.moveRight(p2.shot, p2.piece)
-                        if event.key == pg.K_RSHIFT: Handler.instantDrop(p2.shot, p2.piece)
+                        if event.key == pg.K_RSHIFT: Handler.instantDrop(p2.shot, p2.piece) # P2 PVP Hard Drop
                 
                 else:
                     # SOLO, PVE, LAN -> WASD + L + Space
@@ -236,7 +232,6 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 
                 clears, all_clear = Handler.eliminateFilledRows(p.shot, p.piece)
                 
-                # [新增] 觸發計時器
                 if clears == 4: p.shot.tetris_timer = 60
                 if all_clear: p.shot.all_clear_timer = 60 
                 
@@ -277,15 +272,23 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
         if mode == 'LAN' and len(players) < 2: should_check_win = False
         
         if should_check_win and alive_count == 0:
-            if mode != 'SOLO':
-                winner_name = "Draw"
-                best_score = -1
-                for p in players.values():
-                    if p.shot.score > best_score:
-                        best_score = p.shot.score; winner_name = p.name
-                return "GAME_OVER", {"winner": winner_name, "score": best_score}
-            else:
-                return "GAME_OVER", {"winner": "Solo", "score": players[0].shot.score}
+            results = []
+            sorted_players = sorted(players.values(), key=lambda p: p.shot.score, reverse=True)
+            winner_p = sorted_players[0]
+            # 優先判定存活者
+            survivors = [p for p in players.values() if not p.game_over]
+            if len(survivors) > 0: winner_p = survivors[0]
+
+            for pid in sorted(players.keys()):
+                p = players[pid]
+                results.append({
+                    "name": p.name,
+                    "score": p.shot.score,
+                    "lines": p.shot.line_count,
+                    "is_winner": (p == winner_p),
+                    "is_local": p.is_local
+                })
+            return "GAME_OVER", results
 
         # --- Rendering ---
         screen.fill(config.background_color)
@@ -329,14 +332,13 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 screen.blit(surf, (x_pos, y_pos))
                 if p.game_over: _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "OUT")
 
-        # 更新特效 Timer
         me = players[my_id]
         if getattr(me.shot, 'tetris_timer', 0) > 0: me.shot.tetris_timer -= 1
-        if getattr(me.shot, 'all_clear_timer', 0) > 0: me.shot.all_clear_timer -= 1 # [新增]
+        if getattr(me.shot, 'all_clear_timer', 0) > 0: me.shot.all_clear_timer -= 1
         for pid, p in players.items():
             if pid != my_id:
                 if getattr(p.shot, 'tetris_timer', 0) > 0: p.shot.tetris_timer -= 1
-                if getattr(p.shot, 'all_clear_timer', 0) > 0: p.shot.all_clear_timer -= 1 # [新增]
+                if getattr(p.shot, 'all_clear_timer', 0) > 0: p.shot.all_clear_timer -= 1
             
         pg.display.update()
         clock.tick(60)
