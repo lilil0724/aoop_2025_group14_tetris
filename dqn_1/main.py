@@ -16,8 +16,8 @@ def main():
     try:
         pg.mixer.init()
         base_path = os.path.dirname(os.path.abspath(__file__))
-        clear_path = os.path.join(base_path, 'clear.wav')
-        tetris_path = os.path.join(base_path, 'tetris.wav')
+        clear_path = os.path.join(base_path, 'normal.mp3')
+        tetris_path = os.path.join(base_path, 'tetris.mp3')
         
         if os.path.exists(clear_path):
             sounds['clear'] = pg.mixer.Sound(clear_path)

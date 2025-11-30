@@ -255,9 +255,13 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                 
                 # 播放音效
                 if clears > 0 and sounds:
+                    # Update volume based on current settings
+                    vol = settings.VOLUME
                     if clears == 4 and sounds.get('tetris'):
+                        sounds['tetris'].set_volume(vol)
                         sounds['tetris'].play()
                     elif sounds.get('clear'):
+                        sounds['clear'].set_volume(vol)
                         sounds['clear'].play()
 
                 if clears == 4: p.shot.tetris_timer = 60
