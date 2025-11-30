@@ -54,7 +54,7 @@ def rotate(shot, piece):
             piece.rotation = old_rot
             return
 
-# [新增] 逆時針旋轉 (Counter-Clockwise)
+# 逆時針旋轉 (Counter-Clockwise)
 def rotateCCW(shot, piece):
     old_rot = piece.rotation
     piece.rotation -= 1 # Python 的負數取餘數機制會自動處理 (-1 % 4 = 3)
