@@ -341,16 +341,16 @@ def lan_menu(screen, font):
     # Player Count Buttons (for Host)
     # Center them properly
     cx = config.width // 2
-    btn_2p = Button(cx - 110, start_y + 300, 60, 60, "2P", "2P", color=(100, 100, 100))
-    btn_3p = Button(cx - 30, start_y + 300, 60, 60, "3P", "3P", color=(100, 100, 100))
-    btn_4p = Button(cx + 50, start_y + 300, 60, 60, "4P", "4P", color=(100, 100, 100))
+    btn_2p = Button(cx - 110, start_y + 330, 60, 60, "2P", "2P", color=(100, 100, 100))
+    btn_3p = Button(cx - 30, start_y + 330, 60, 60, "3P", "3P", color=(100, 100, 100))
+    btn_4p = Button(cx + 50, start_y + 330, 60, 60, "4P", "4P", color=(100, 100, 100))
     
     player_btns = [btn_2p, btn_3p, btn_4p]
     selected_players = 2
     btn_2p.color = (50, 200, 50) # Default selected
     
     # Adjust Back button position
-    btn_back = Button(center_x, start_y + 400, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
+    btn_back = Button(center_x, start_y + 430, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
     
     buttons = [btn_host, btn_join, btn_back] + player_btns
     
