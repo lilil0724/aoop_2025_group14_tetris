@@ -47,10 +47,7 @@ score_count = {
     4: 1200
 }
 font = ('Comic Sans MS', int(100 * (unit / 10)**1.5))
-# (移除了舊的單人遊戲 score_pos, line_pos, speed_pos 等)
 
-
-# --- (新增) Garbage Attack & System Config ---
 ATTACK_BASE = {
     0: 0, # 0 行
     1: 0, # Single
