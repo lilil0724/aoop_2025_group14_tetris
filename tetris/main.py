@@ -30,7 +30,6 @@ def main():
         net_mgr = None
         
         if choice == "PVE":
-            # [恢復] 進入 PVE 前先選 AI
             ai_choice = ai_selection_menu(screen, font)
             if ai_choice == "BACK":
                 continue
