@@ -32,7 +32,7 @@ P2_NEXT_PIECE_POS = (P2_INFO_X + 22*unit, rows * grid // 2 - 30*unit)
 # Total screen size
 # width = P2_INFO_X + INFO_PANEL_WIDTH
 # height = rows * grid
-width = 1600 # 增加寬度以容納更多玩家
+width = 1600 
 height = 900
 # --- End 1v1 Config ---
 
