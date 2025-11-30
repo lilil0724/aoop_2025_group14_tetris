@@ -37,7 +37,9 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
             
             # Controls / Physics
             self.counter = 0
-            self.key_ticker = {k: 0 for k in [pg.K_a, pg.K_s, pg.K_d, pg.K_w, pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN, pg.K_UP]}
+            # Initialize key ticker with all possible control keys
+            all_keys = list(settings.KEY_BINDINGS.values())
+            self.key_ticker = {k: 0 for k in all_keys}
             
             # AI
             self.ai_nn = None
@@ -159,21 +161,21 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                 # P1 / Local Controls
                 p1 = players[my_id]
                 if not p1.game_over:
-                    if event.key == pg.K_w: Handler.rotate(p1.shot, p1.piece)
-                    if event.key == pg.K_s: p1.key_ticker[pg.K_s] = 13; Handler.drop(p1.shot, p1.piece)
-                    if event.key == pg.K_a: p1.key_ticker[pg.K_a] = 13; Handler.moveLeft(p1.shot, p1.piece)
-                    if event.key == pg.K_d: p1.key_ticker[pg.K_d] = 13; Handler.moveRight(p1.shot, p1.piece)
-                    if event.key == pg.K_LSHIFT: Handler.instantDrop(p1.shot, p1.piece)
+                    if event.key == settings.KEY_BINDINGS['P1_ROTATE']: Handler.rotate(p1.shot, p1.piece)
+                    if event.key == settings.KEY_BINDINGS['P1_DOWN']: p1.key_ticker[settings.KEY_BINDINGS['P1_DOWN']] = 13; Handler.drop(p1.shot, p1.piece)
+                    if event.key == settings.KEY_BINDINGS['P1_LEFT']: p1.key_ticker[settings.KEY_BINDINGS['P1_LEFT']] = 13; Handler.moveLeft(p1.shot, p1.piece)
+                    if event.key == settings.KEY_BINDINGS['P1_RIGHT']: p1.key_ticker[settings.KEY_BINDINGS['P1_RIGHT']] = 13; Handler.moveRight(p1.shot, p1.piece)
+                    if event.key == settings.KEY_BINDINGS['P1_DROP']: Handler.instantDrop(p1.shot, p1.piece)
                 
                 # P2 Controls (PVP)
                 if mode == 'PVP':
                     p2 = players[1]
                     if not p2.game_over:
-                        if event.key == pg.K_UP: Handler.rotate(p2.shot, p2.piece)
-                        if event.key == pg.K_DOWN: p2.key_ticker[pg.K_DOWN] = 13; Handler.drop(p2.shot, p2.piece)
-                        if event.key == pg.K_LEFT: p2.key_ticker[pg.K_LEFT] = 13; Handler.moveLeft(p2.shot, p2.piece)
-                        if event.key == pg.K_RIGHT: p2.key_ticker[pg.K_RIGHT] = 13; Handler.moveRight(p2.shot, p2.piece)
-                        if event.key == pg.K_RSHIFT: Handler.instantDrop(p2.shot, p2.piece)
+                        if event.key == settings.KEY_BINDINGS['P2_ROTATE']: Handler.rotate(p2.shot, p2.piece)
+                        if event.key == settings.KEY_BINDINGS['P2_DOWN']: p2.key_ticker[settings.KEY_BINDINGS['P2_DOWN']] = 13; Handler.drop(p2.shot, p2.piece)
+                        if event.key == settings.KEY_BINDINGS['P2_LEFT']: p2.key_ticker[settings.KEY_BINDINGS['P2_LEFT']] = 13; Handler.moveLeft(p2.shot, p2.piece)
+                        if event.key == settings.KEY_BINDINGS['P2_RIGHT']: p2.key_ticker[settings.KEY_BINDINGS['P2_RIGHT']] = 13; Handler.moveRight(p2.shot, p2.piece)
+                        if event.key == settings.KEY_BINDINGS['P2_DROP']: Handler.instantDrop(p2.shot, p2.piece)
 
         # --- DAS Handling ---
         keys = pg.key.get_pressed()
@@ -185,8 +187,8 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
             for k in p.key_ticker:
                 if p.key_ticker[k] > 0: p.key_ticker[k] -= 1
         
-        do_das(players[my_id], pg.K_a, pg.K_d, pg.K_s)
-        if mode == 'PVP': do_das(players[1], pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN)
+        do_das(players[my_id], settings.KEY_BINDINGS['P1_LEFT'], settings.KEY_BINDINGS['P1_RIGHT'], settings.KEY_BINDINGS['P1_DOWN'])
+        if mode == 'PVP': do_das(players[1], settings.KEY_BINDINGS['P2_LEFT'], settings.KEY_BINDINGS['P2_RIGHT'], settings.KEY_BINDINGS['P2_DOWN'])
 
         # --- Game Logic (Gravity, AI, Clearing) ---
         for pid, p in players.items():

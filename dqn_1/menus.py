@@ -17,6 +17,7 @@ def settings_menu(screen):
     center_x = config.width // 2 - btn_w // 2
     center_y = config.height // 3
     
+    btn_controls = Button(center_x, center_y + 80, btn_w, btn_h, "Controls", "CONTROLS", color=(50, 100, 200))
     btn_back = Button(center_x, center_y + 160, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
     
     while True:
@@ -24,7 +25,7 @@ def settings_menu(screen):
         status_color = (50, 200, 50) if settings.SHOW_GHOST else (200, 50, 50)
         btn_ghost = Button(center_x, center_y, btn_w, btn_h, f"Ghost Piece: {status_text}", "TOGGLE_GHOST", color=status_color)
         
-        buttons = [btn_ghost, btn_back]
+        buttons = [btn_ghost, btn_controls, btn_back]
         
         screen.fill(config.background_color)
         
@@ -37,12 +38,109 @@ def settings_menu(screen):
             
             if btn_ghost.is_clicked(event):
                 settings.SHOW_GHOST = not settings.SHOW_GHOST
+        
+            # 新增 Controls 按鈕邏輯
+            if btn_controls.is_clicked(event):
+                controls_menu(screen)
                 
             if btn_back.is_clicked(event):
                 return 
 
         for btn in buttons: btn.draw(screen)
+    pg.display.update()
+
+# --- 控制設定選單 ---
+
+def controls_menu(screen):
+    pg.display.set_caption("Tetris Battle - Controls")
+    font_title = pg.font.SysFont('Comic Sans MS', 40, bold=True)
+    font_label = pg.font.SysFont('Arial', 24)
+    
+    btn_w, btn_h = 200, 40
+    
+    # 定義要設定的按鍵
+    actions = [
+        ("P1 Left", 'P1_LEFT'),
+        ("P1 Right", 'P1_RIGHT'),
+        ("P1 Down", 'P1_DOWN'),
+        ("P1 Rotate", 'P1_ROTATE'),
+        ("P1 Drop", 'P1_DROP'),
+        ("P2 Left", 'P2_LEFT'),
+        ("P2 Right", 'P2_RIGHT'),
+        ("P2 Down", 'P2_DOWN'),
+        ("P2 Rotate", 'P2_ROTATE'),
+        ("P2 Drop", 'P2_DROP')
+    ]
+    
+    waiting_for_key = None # 紀錄當前正在等待輸入的 action key (例如 'P1_LEFT')
+    
+    while True:
+        screen.fill(config.background_color)
+        
+        title_surf = font_title.render("CONTROLS CONFIG", True, (255, 255, 255))
+        title_rect = title_surf.get_rect(center=(config.width//2, 50))
+        screen.blit(title_surf, title_rect)
+        
+        # 繪製按鍵設定列表
+        start_y = 100
+        col1_x = config.width // 4
+        col2_x = config.width * 3 // 4
+        
+        buttons = []
+        
+        for i, (label, key_name) in enumerate(actions):
+            is_p1 = i < 5
+            x = col1_x if is_p1 else col2_x
+            y = start_y + (i % 5) * 60
+            
+            # 顯示標籤
+            label_surf = font_label.render(label, True, (200, 200, 200))
+            label_rect = label_surf.get_rect(midright=(x - 110, y + btn_h//2))
+            screen.blit(label_surf, label_rect)
+            
+            # 顯示按鍵按鈕
+            current_key_code = settings.KEY_BINDINGS[key_name]
+            key_text = pg.key.name(current_key_code).upper()
+            
+            btn_color = (100, 100, 100)
+            if waiting_for_key == key_name:
+                key_text = "PRESS KEY..."
+                btn_color = (200, 50, 50)
+            
+            btn = Button(x - 100, y, btn_w, btn_h, key_text, key_name, color=btn_color)
+            btn.draw(screen)
+            buttons.append(btn)
+            
+        # Back Button
+        btn_back = Button(config.width//2 - 100, config.height - 80, 200, 50, "Back", "BACK", color=(50, 50, 50))
+        btn_back.draw(screen)
+        buttons.append(btn_back)
+        
         pg.display.update()
+        
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                pg.quit(); sys.exit()
+                
+            if event.type == pg.MOUSEBUTTONDOWN:
+                if waiting_for_key:
+                    # 如果正在等待按鍵，點擊滑鼠取消等待
+                    waiting_for_key = None
+                    continue
+                    
+                for btn in buttons:
+                    if btn.is_clicked(event):
+                        if btn.action_code == "BACK":
+                            return
+                        else:
+                            # 點擊了某個按鍵設定按鈕
+                            waiting_for_key = btn.action_code
+                            
+            if event.type == pg.KEYDOWN:
+                if waiting_for_key:
+                    if event.key != pg.K_ESCAPE: # 允許 ESC 取消 (或者也可以綁定 ESC)
+                        settings.KEY_BINDINGS[waiting_for_key] = event.key
+                    waiting_for_key = None
 
 # --- 暫停選單 ---
 
@@ -64,7 +162,7 @@ def pause_menu(screen):
     
     font_pause = pg.font.SysFont('Comic Sans MS', 50, bold=True)
     text_surf = font_pause.render("PAUSED", True, (255, 255, 255))
-    text_rect = text_surf.get_rect(center=(config.width//2, center_y - 60))
+    text_rect = text_surf.get_rect(center=(config.width//2, config.height//6))
     screen.blit(text_surf, text_rect)
     
     pg.display.update()
