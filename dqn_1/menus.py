@@ -339,10 +339,11 @@ def lan_menu(screen, font):
     btn_back = Button(center_x, start_y + 300, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
     
     # Player Count Buttons (for Host)
-    # Move them down to avoid overlap with IP input
-    btn_2p = Button(center_x - 110, start_y + 300, 60, 60, "2P", "2P", color=(100, 100, 100))
-    btn_3p = Button(center_x, start_y + 300, 60, 60, "3P", "3P", color=(100, 100, 100))
-    btn_4p = Button(center_x + 110, start_y + 300, 60, 60, "4P", "4P", color=(100, 100, 100))
+    # Center them properly
+    cx = config.width // 2
+    btn_2p = Button(cx - 110, start_y + 300, 60, 60, "2P", "2P", color=(100, 100, 100))
+    btn_3p = Button(cx - 30, start_y + 300, 60, 60, "3P", "3P", color=(100, 100, 100))
+    btn_4p = Button(cx + 50, start_y + 300, 60, 60, "4P", "4P", color=(100, 100, 100))
     
     player_btns = [btn_2p, btn_3p, btn_4p]
     selected_players = 2
