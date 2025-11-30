@@ -26,10 +26,12 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
     # --- Player Context Helper ---
     class PlayerContext:
         def __init__(self, is_local=False, is_ai=False, name="Player"):
+            self.bag = [] # 7-bag system
+            
             self.shot = shots.Shot()
             self.shot.tetris_timer = 0
-            self.piece = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
-            self.next_piece = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
+            self.piece = pieces.Piece(5, 0, self.get_next_shape())
+            self.next_piece = pieces.Piece(5, 0, self.get_next_shape())
             self.game_over = False
             self.is_local = is_local
             self.is_ai = is_ai
@@ -46,6 +48,12 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
             self.ai_target_move = None
             self.ai_timer = 0
             self.ai_think_timer = 0
+
+        def get_next_shape(self):
+            if not self.bag:
+                self.bag = list(config.shapes.keys())
+                random.shuffle(self.bag)
+            return self.bag.pop()
 
     players = {}
     my_id = 0
@@ -283,7 +291,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                         players[target_id].shot.pending_garbage += atk
                         
                 p.piece = p.next_piece
-                p.next_piece = pieces.Piece(5, 0, random.choice(list(config.shapes.keys())))
+                p.next_piece = pieces.Piece(5, 0, p.get_next_shape())
                 
                 if Handler.isDefeat(p.shot, p.piece):
                     p.game_over = True
