@@ -11,18 +11,24 @@
 建議使用虛擬環境來隔離專案依賴，避免與系統其他套件衝突：
 
 1.  **建立虛擬環境**：
-    ```powershell
+    ```bash
     # Windows
     python -m venv venv
+
+    # Linux / macOS
+    python3 -m venv venv
     ```
 
 2.  **啟動虛擬環境**：
-    ```powershell
+    ```bash
     # Windows (PowerShell)
     .\venv\Scripts\Activate.ps1
     
     # Windows (CMD)
     .\venv\Scripts\activate.bat
+
+    # Linux / macOS
+    source venv/bin/activate
     ```
 
 3.  **安裝依賴項**：
