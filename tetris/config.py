@@ -1,5 +1,5 @@
 import pygame as pg
-import math # <-- 新增
+import math 
 
 # scale unit
 unit = 6
@@ -9,7 +9,7 @@ rows = 20
 columns = 10
 
 # --- 1v1 Layout Configuration ---
-GARBAGE_BAR_WIDTH = 2 * unit # <-- 新增垃圾條寬度
+GARBAGE_BAR_WIDTH = 2 * unit 
 BOARD_WIDTH = columns * grid
 INFO_PANEL_WIDTH = 50 * unit
 
@@ -30,9 +30,11 @@ P2_LINE_POS = (P2_INFO_X + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.
 P2_NEXT_PIECE_POS = (P2_INFO_X + 22*unit, rows * grid // 2 - 30*unit)
 
 # Total screen size
-width = P2_INFO_X + INFO_PANEL_WIDTH
-height = rows * grid
-# --- End 1v1 Config ---
+# width = P2_INFO_X + INFO_PANEL_WIDTH
+# height = rows * grid
+width = 1600 
+height = 900
+# --- End 1v1 Config ---.
 
 
 # others
@@ -45,10 +47,7 @@ score_count = {
     4: 1200
 }
 font = ('Comic Sans MS', int(100 * (unit / 10)**1.5))
-# (移除了舊的單人遊戲 score_pos, line_pos, speed_pos 等)
 
-
-# --- (新增) Garbage Attack & System Config ---
 ATTACK_BASE = {
     0: 0, # 0 行
     1: 0, # Single
@@ -71,11 +70,10 @@ GARBAGE_INSERT_DELAY = 30  # 垃圾行插入節拍 (30 幀插入一次)
 GARBAGE_LINES_PER_INSERT = 1 # 每次插入 1 行
 GARBAGE_HOLE_REPEAT_PROB = 0.7 # 垃圾洞位沿用機率
 GARBAGE_COLOR = (100, 100, 100) # 垃圾行顏色
-# --- (新增結束) ---
+
 
 
 # shapes: S, Z, I, O, J, L, T
-# (shapes 內容保持不變... )
 shapes = {
     'S': [
         [(0, 0), (0, 1), (1, -1), (1, 0)],
@@ -112,7 +110,6 @@ shapes = {
     ],
 }
 
-# (shape_colors 內容保持不變... )
 SHADOW = (192, 192, 192)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
