@@ -399,6 +399,7 @@ def lan_menu(screen, font):
     input_rect = pg.Rect(config.width // 2 - input_w // 2, start_y + 160, input_w, input_h)
     
     net_mgr = network_utils.NetworkManager()
+    my_local_ip = net_mgr.get_local_ip()
     
     while True:
         screen.fill(config.background_color)
@@ -406,6 +407,11 @@ def lan_menu(screen, font):
         title_surf = pg.font.SysFont('Comic Sans MS', 40, bold=True).render("LAN SETUP", True, (255, 255, 255))
         title_rect = title_surf.get_rect(center=(config.width//2, config.height//8))
         screen.blit(title_surf, title_rect)
+
+        # Display Local IP
+        ip_display_surf = font.render(f"Your IP: {my_local_ip}", True, (100, 255, 100))
+        ip_display_rect = ip_display_surf.get_rect(center=(config.width//2, config.height//8 + 50))
+        screen.blit(ip_display_surf, ip_display_rect)
         
         # Draw Input Box
         color = (255, 255, 255) if input_active else (150, 150, 150)
