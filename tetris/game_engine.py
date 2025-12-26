@@ -19,7 +19,7 @@ def get_new_bag():
     random.shuffle(bag)
     return bag
 
-def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
+def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None):
     
     class PlayerContext:
         def __init__(self, is_local=False, is_ai=False, name="Player"):
@@ -167,14 +167,27 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                         if event.key == pg.K_RSHIFT: Handler.instantDrop(p2.shot, p2.piece) # P2 PVP Hard Drop
                 
                 else:
-                    # SOLO, PVE, LAN -> WASD + L + Space
+                    # SOLO, PVE, LAN -> WASD + L + Space + Arrow Keys
                     p_local = players[my_id]
                     if not p_local.game_over:
-                        if event.key == pg.K_w: Handler.rotate(p_local.shot, p_local.piece)
+                        if event.key == pg.K_w or event.key == pg.K_UP: Handler.rotate(p_local.shot, p_local.piece)
                         if event.key == pg.K_l: Handler.rotateCCW(p_local.shot, p_local.piece)
-                        if event.key == pg.K_s: p_local.key_ticker[pg.K_s] = 13; Handler.drop(p_local.shot, p_local.piece)
-                        if event.key == pg.K_a: p_local.key_ticker[pg.K_a] = 13; Handler.moveLeft(p_local.shot, p_local.piece)
-                        if event.key == pg.K_d: p_local.key_ticker[pg.K_d] = 13; Handler.moveRight(p_local.shot, p_local.piece)
+                        
+                        if event.key == pg.K_s or event.key == pg.K_DOWN: 
+                            p_local.key_ticker[pg.K_s] = 13
+                            p_local.key_ticker[pg.K_DOWN] = 13
+                            Handler.drop(p_local.shot, p_local.piece)
+                            
+                        if event.key == pg.K_a or event.key == pg.K_LEFT: 
+                            p_local.key_ticker[pg.K_a] = 13
+                            p_local.key_ticker[pg.K_LEFT] = 13
+                            Handler.moveLeft(p_local.shot, p_local.piece)
+                            
+                        if event.key == pg.K_d or event.key == pg.K_RIGHT: 
+                            p_local.key_ticker[pg.K_d] = 13
+                            p_local.key_ticker[pg.K_RIGHT] = 13
+                            Handler.moveRight(p_local.shot, p_local.piece)
+                            
                         if event.key == pg.K_SPACE: Handler.instantDrop(p_local.shot, p_local.piece)
 
         # --- DAS ---
@@ -192,6 +205,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             do_das(players[1], pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN)
         else:
             do_das(players[my_id], pg.K_a, pg.K_d, pg.K_s)
+            do_das(players[my_id], pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN)
 
         # --- Game Logic ---
         for pid, p in players.items():
@@ -231,6 +245,12 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 if p.is_ai: p.ai_target_move = None 
                 
                 clears, all_clear = Handler.eliminateFilledRows(p.shot, p.piece)
+
+                if p.is_local and sounds:
+                    if clears == 4 and 'tetris' in sounds:
+                        sounds['tetris'].play()
+                    elif clears > 0 and 'clear' in sounds:
+                        sounds['clear'].play()
                 
                 if clears == 4: p.shot.tetris_timer = 60
                 if all_clear: p.shot.all_clear_timer = 60 
