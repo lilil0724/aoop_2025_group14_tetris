@@ -6,15 +6,33 @@
 
 請確保您的電腦已安裝 Python 3.x。
 
-### 安裝依賴項
-在終端機（Terminal/PowerShell）中執行以下指令安裝所需的函式庫：
+### 使用虛擬環境安裝 (建議)
 
-```bash
-pip install pygame
-```
+建議使用虛擬環境來隔離專案依賴，避免與系統其他套件衝突：
+
+1.  **建立虛擬環境**：
+    ```powershell
+    # Windows
+    python -m venv venv
+    ```
+
+2.  **啟動虛擬環境**：
+    ```powershell
+    # Windows (PowerShell)
+    .\venv\Scripts\Activate.ps1
+    
+    # Windows (CMD)
+    .\venv\Scripts\activate.bat
+    ```
+
+3.  **安裝依賴項**：
+    啟動虛擬環境後，執行以下指令安裝 `requirements.txt` 中列出的所有函式庫：
+    ```bash
+    pip install -r requirements.txt
+    ```
 
 ### 執行遊戲
-進入專案根目錄後，執行：
+啟動虛擬環境後，進入專案根目錄執行：
 
 ```bash
 python tetris/main.py
@@ -40,7 +58,7 @@ python tetris/main.py
 | **加速下落** | `S` | `Down Arrow` |
 | **順時針旋轉** | `W` | `Up Arrow` |
 | **逆時針旋轉** | `Q` | `L` |
-| **硬降 (直接到底)** | `Left Shift` / `Space` | `Right Shift` |
+| **硬降 (直接到底)** | `Left Shift` | `Right Shift` |
 | **暫停** | `ESC` | `ESC` |
 
 ---
