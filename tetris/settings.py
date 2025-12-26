@@ -16,11 +16,13 @@ KEY_BINDINGS = {
     'P1_RIGHT': pg.K_d,
     'P1_DOWN': pg.K_s,
     'P1_ROTATE': pg.K_w,
+    'P1_ROTATE_CCW': pg.K_q,
     'P1_DROP': pg.K_LSHIFT,
     
     'P2_LEFT': pg.K_LEFT,
     'P2_RIGHT': pg.K_RIGHT,
     'P2_DOWN': pg.K_DOWN,
     'P2_ROTATE': pg.K_UP,
+    'P2_ROTATE_CCW': pg.K_l,
     'P2_DROP': pg.K_RSHIFT
 }

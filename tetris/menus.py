@@ -83,12 +83,14 @@ def controls_menu(screen):
         ("P1 Left", 'P1_LEFT'),
         ("P1 Right", 'P1_RIGHT'),
         ("P1 Down", 'P1_DOWN'),
-        ("P1 Rotate", 'P1_ROTATE'),
+        ("P1 Rotate CW", 'P1_ROTATE'),
+        ("P1 Rotate CCW", 'P1_ROTATE_CCW'),
         ("P1 Drop", 'P1_DROP'),
         ("P2 Left", 'P2_LEFT'),
         ("P2 Right", 'P2_RIGHT'),
         ("P2 Down", 'P2_DOWN'),
-        ("P2 Rotate", 'P2_ROTATE'),
+        ("P2 Rotate CW", 'P2_ROTATE'),
+        ("P2 Rotate CCW", 'P2_ROTATE_CCW'),
         ("P2 Drop", 'P2_DROP')
     ]
     
@@ -103,16 +105,16 @@ def controls_menu(screen):
         screen.blit(title_surf, title_rect)
         
         # 繪製按鍵設定列表
-        start_y = 100
-        col1_x = config.width // 4
-        col2_x = config.width * 3 // 4
+        start_y = 120
+        col1_x = config.width // 4 + 50
+        col2_x = config.width * 3 // 4 + 50
         
         buttons = []
         
         for i, (label, key_name) in enumerate(actions):
-            is_p1 = i < 5
+            is_p1 = i < 6
             x = col1_x if is_p1 else col2_x
-            y = start_y + (i % 5) * 60
+            y = start_y + (i % 6) * 70
             
             # 顯示標籤
             label_surf = font_label.render(label, True, (200, 200, 200))
