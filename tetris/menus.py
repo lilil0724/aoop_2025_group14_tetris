@@ -537,12 +537,12 @@ def ai_selection_menu(screen, font):
     
     btn_w, btn_h = 320, 60
     center_x = config.width // 2 - btn_w // 2
-    start_y = config.height // 3
+    start_y = config.height // 3 - 40
     
     btn_weight = Button(center_x, start_y, btn_w, btn_h, "Weighted AI (8-Param)", "WEIGHT", color=(50, 100, 200))
     btn_expert = Button(center_x, start_y + 80, btn_w, btn_h, "Expert AI (Fast)", "EXPERT", color=(200, 50, 50))
-    btn_back = Button(center_x, start_y + 200, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
-    buttons = [btn_weight, btn_expert, btn_back]
+    btn_back = Button(center_x, start_y + 240, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
+    
     font_title = pg.font.SysFont('Comic Sans MS', 40, bold=True)
     
     while True:
@@ -551,10 +551,25 @@ def ai_selection_menu(screen, font):
         title_rect = title_surf.get_rect(center=(config.width//2, config.height//6))
         screen.blit(title_surf, title_rect)
         
+        # AI Speed Toggle Button
+        speed_text = ["Slow", "Normal", "Fast", "Instant"][settings.AI_SPEED_LEVEL - 1]
+        btn_speed = Button(center_x, start_y + 160, btn_w, btn_h, f"AI Speed: {speed_text}", "TOGGLE_SPEED", color=(150, 150, 50))
+        
+        buttons = [btn_weight, btn_expert, btn_speed, btn_back]
+        
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
+            
+            if btn_speed.is_clicked(event):
+                settings.AI_SPEED_LEVEL = (settings.AI_SPEED_LEVEL % 4) + 1
+            
             for btn in buttons:
-                if btn.is_clicked(event): return btn.action_code 
+                if btn.is_clicked(event):
+                    if btn.action_code != "TOGGLE_SPEED":
+                        return btn.action_code 
+        
+        for btn in buttons: btn.draw(screen)
+        pg.display.update()
                     
         for btn in buttons: btn.draw(screen)
         pg.display.update()
