@@ -26,7 +26,7 @@ def main():
             sounds['tetris'] = pg.mixer.Sound(tetris_path)
             
         # Load and play BGM
-        bgm_path = os.path.join(base_path, '2_23_AM_2.mp3')
+        bgm_path = os.path.join(base_path, 'tetris_menu.mp3')
         game_bgm_path = os.path.join(base_path, 'tetris_game.mp3') # Game BGM path
 
         if os.path.exists(bgm_path):
