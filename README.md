@@ -123,3 +123,10 @@ python tetris/main.py
 ### 刪除 venv 虛擬環境
 
 請先確認 **已離開虛擬環境**（若目前仍在虛擬環境中，請先執行 `deactivate`），再刪除 `venv` 資料夾：
+
+```bash
+# Windows
+rmdir /s /q venv
+
+# Linux / macOS
+rm -rf venv
