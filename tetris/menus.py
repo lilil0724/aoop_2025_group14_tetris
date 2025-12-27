@@ -350,7 +350,11 @@ def lan_menu(screen, font):
     input_rect = pg.Rect(config.width // 2 - input_w // 2, start_y + 160, input_w, input_h)
     
     net_mgr = network_utils.NetworkManager()
-    my_local_ip = net_mgr.get_local_ip()
+    all_ips = net_mgr.get_all_ips()
+    current_ip_idx = 0
+    my_local_ip = all_ips[current_ip_idx]
+    
+    btn_cycle_ip = Button(config.width//2 + 250, config.height//8 + 50, 100, 40, "Next IP", "CYCLE_IP", color=(100, 100, 100))
     
     while True:
         screen.fill(config.background_color)
@@ -362,6 +366,9 @@ def lan_menu(screen, font):
         ip_display_surf = font.render(f"Your IP: {my_local_ip}", True, (100, 255, 100))
         ip_display_rect = ip_display_surf.get_rect(center=(config.width//2, config.height//8 + 50))
         screen.blit(ip_display_surf, ip_display_rect)
+        
+        if len(all_ips) > 1:
+            btn_cycle_ip.draw(screen)
         
         # Draw Input Box
         color = (255, 255, 255) if input_active else (150, 150, 150)
@@ -380,6 +387,12 @@ def lan_menu(screen, font):
             if event.type == pg.MOUSEBUTTONDOWN:
                 if input_rect.collidepoint(event.pos): input_active = True
                 else: input_active = False
+                
+                # Check cycle IP button
+                if len(all_ips) > 1 and btn_cycle_ip.is_clicked(event):
+                    current_ip_idx = (current_ip_idx + 1) % len(all_ips)
+                    my_local_ip = all_ips[current_ip_idx]
+                
                 for btn in buttons:
                     if btn.is_clicked(event):
                         if btn.action_code == "BACK": return None, None
@@ -388,7 +401,8 @@ def lan_menu(screen, font):
                             for b in player_btns: b.color = (100, 100, 100)
                             btn.color = (50, 200, 50)
                         elif btn.action_code == "HOST":
-                            local_ip = net_mgr.get_local_ip()
+                            # Use the selected IP for display in lobby
+                            local_ip = my_local_ip 
                             host_thread = threading.Thread(target=net_mgr.host_game, args=(5555, selected_players), daemon=True)
                             host_thread.start()
                             waiting = True

@@ -27,6 +27,34 @@ class NetworkManager:
         
         self.game_started = False # [NEW] Game start flag
 
+    def get_all_ips(self):
+        ip_list = []
+        try:
+            # Method 1: Connect to internet (default route)
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            if ip not in ip_list and not ip.startswith("127."):
+                ip_list.append(ip)
+        except:
+            pass
+            
+        try:
+            # Method 2: Hostname resolution
+            hostname = socket.gethostname()
+            ips = socket.gethostbyname_ex(hostname)[2]
+            for ip in ips:
+                if ip not in ip_list and not ip.startswith("127."):
+                    ip_list.append(ip)
+        except:
+            pass
+            
+        if not ip_list:
+            ip_list.append("127.0.0.1")
+            
+        return ip_list
+
     def get_local_ip(self):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
