@@ -359,7 +359,7 @@ def lan_menu(screen, font):
         screen.blit(title_surf, title_rect)
 
         # Display Local IP
-        ip_display_surf = font.render(f"Your IP: {my_local_ip} (Port: 5555)", True, (100, 255, 100))
+        ip_display_surf = font.render(f"Your IP: {my_local_ip}", True, (100, 255, 100))
         ip_display_rect = ip_display_surf.get_rect(center=(config.width//2, config.height//8 + 50))
         screen.blit(ip_display_surf, ip_display_rect)
         
@@ -404,11 +404,11 @@ def lan_menu(screen, font):
                                 title_s = font.render("Lobby - Waiting for Players", True, (255, 255, 255))
                                 screen.blit(title_s, title_s.get_rect(center=(config.width//2, config.height//6)))
                                 info_y = config.height//3
-                                txt_ip = font.render(f"Host IP: {local_ip} (Port: 5555)", True, (255, 215, 0))
+                                txt_ip = font.render(f"Host IP: {local_ip}", True, (255, 215, 0))
                                 screen.blit(txt_ip, txt_ip.get_rect(center=(config.width//2, info_y)))
                                 txt_count = font.render(f"Players Connected: {current_players} / {selected_players}", True, (255, 255, 255))
                                 screen.blit(txt_count, txt_count.get_rect(center=(config.width//2, info_y + 60)))
-                                txt_hint = pg.font.SysFont('Arial', 20).render("Share the IP with your friends to join.", True, (150, 150, 150))
+                                txt_hint = pg.font.SysFont('Arial', 20).render("Share IP. Check Firewall if join fails.", True, (150, 150, 150))
                                 screen.blit(txt_hint, txt_hint.get_rect(center=(config.width//2, info_y + 100)))
                                 btn_start.draw(screen)
                                 pg.display.update(); clock.tick(30)
@@ -435,7 +435,7 @@ def lan_menu(screen, font):
                                     while pg.time.get_ticks() - err_start < 3000:
                                         screen.fill(config.background_color)
                                         err_surf = font.render("Connection Failed!", True, (255, 50, 50))
-                                        hint_surf = pg.font.SysFont('Arial', 20).render("Check IP or Firewall settings", True, (200, 200, 200))
+                                        hint_surf = pg.font.SysFont('Arial', 20).render("Check Host IP or Windows Firewall", True, (200, 200, 200))
                                         screen.blit(err_surf, err_surf.get_rect(center=(config.width//2, config.height//2 - 20)))
                                         screen.blit(hint_surf, hint_surf.get_rect(center=(config.width//2, config.height//2 + 30)))
                                         pg.display.update(); pg.event.pump()
@@ -444,7 +444,7 @@ def lan_menu(screen, font):
                                     if e.type == pg.QUIT: net_mgr.close(); pg.quit(); sys.exit()
                                     if e.type == pg.KEYDOWN and e.key == pg.K_ESCAPE: net_mgr.close(); waiting = False; net_mgr = network_utils.NetworkManager()
                                 screen.fill(config.background_color)
-                                txt1 = font.render(f"Connecting to {ip_text} (Port: 5555)...", True, (255, 255, 255))
+                                txt1 = font.render(f"Connecting to {ip_text}...", True, (255, 255, 255))
                                 txt2 = font.render("Press ESC to Cancel", True, (150, 150, 150))
                                 screen.blit(txt1, txt1.get_rect(center=(config.width//2, config.height//2)))
                                 screen.blit(txt2, txt2.get_rect(center=(config.width//2, config.height//2 + 60)))

@@ -40,27 +40,19 @@ class NetworkManager:
             except:
                 return "127.0.0.1"
 
-    def _ensure_socket(self):
-        """ Ensure self.client is a valid, open socket """
-        try:
-            # Check if socket is closed or invalid
-            self.client.fileno()
-        except:
-            self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
     def host_game(self, port=5555, max_players=2):
-        self._ensure_socket()
         self.is_server = True
         self.my_id = 0
         try:
             local_ip = self.get_local_ip()
             print(f"Hosting on {local_ip}:{port}")
             
-            self.client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.client.bind(("0.0.0.0", port))
             self.client.listen(max_players - 1)
             self.client.settimeout(0.2)
+            
+            print("Server started. If clients cannot connect, please check your FIREWALL settings.")
+            print("Ensure python.exe is allowed to accept incoming connections.")
             
             self.server_garbage_tracking[0] = 0
             self.server_garbage_received[0] = 0
@@ -72,7 +64,6 @@ class NetworkManager:
             return False
 
     def join_game(self, ip, port=5555):
-        self._ensure_socket()
         self.is_server = False
         try:
             self.client.settimeout(5.0) # Set timeout for connection
