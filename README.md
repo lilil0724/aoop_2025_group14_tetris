@@ -130,5 +130,8 @@ rmdir /s /q venv
 
 # Linux / macOS
 rm -rf venv
+```
 
 ### 刪除 conda 環境
+
+請先離開目前使用中的 conda 環境：
