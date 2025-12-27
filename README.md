@@ -37,6 +37,29 @@
     pip install -r requirements.txt
     ```
 
+### 使用 Anaconda 建立 Conda 環境
+
+使用 **Anaconda Powershell Prompt** 建立並管理 conda 環境，之後使用 `conda activate` 即可啟動虛擬環境：
+
+1.  **開啟 Anaconda Powershell Prompt**
+
+2.  **建立 conda 環境**  
+    > ⚠️ `tetris-battle` 為環境名稱，可依個人喜好自行命名
+    ```bash
+    conda create -n tetris-battle python=3.x -y
+    ```
+
+3.  **啟動 conda 環境**：
+    ```bash
+    conda activate tetris-battle
+    ```
+
+4.  **安裝依賴項**：
+    啟動 conda 環境後，執行以下指令安裝 `requirements.txt` 中列出的所有函式庫：
+    ```bash
+    pip install -r requirements.txt
+    ```
+
 ### 執行遊戲
 啟動虛擬環境後，進入專案根目錄執行：
 
