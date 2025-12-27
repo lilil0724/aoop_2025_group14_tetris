@@ -108,6 +108,10 @@ python tetris/main.py
     *   消除 4 行 (Tetris)：發送 4 行垃圾。
 *   **B2B (Back-to-Back)**：連續進行 Tetris 消除會獲得額外的攻擊加成。
 *   **Perfect Clear**：全消（清空整個版面）會對對手造成毀滅性的打擊。
+*   **Score Attack (分數對決)**：
+    *   在對戰模式中，遊戲**不會**因為其中一方死亡而立即結束。
+    *   遊戲會持續直到**所有玩家**都死亡為止。
+    *   最終勝負將由**分數 (Score)** 決定，分數高者獲勝。這意味著即使您先死亡，若您的分數較高，仍有可能獲勝。
 
 ### AI 難度
 *   **Weighted AI**：基於權衡演算法的 AI，反應較為人性化。
@@ -127,6 +131,9 @@ python tetris/main.py
 *   **Advanced AI Algorithms**：
     *   **Weighted AI**：基於 **Dellacherie's Algorithm**，透過計算 "Landing Height", "Row Transitions", "Holes" 等特徵來評估最佳落點，表現穩定且人性化。
     *   **Neural Network AI (實驗性)**：專案包含一個基於 PyTorch 的 AI 模型架構 (`ai_player_nn.py`)，作為實驗性功能保留，未來可透過訓練模型來進一步強化 AI。
+*   **解析度調整 (Resolution Scaling)**：
+    *   支援多種解析度設定 (1280x720, 1024x576, 1600x900, 1920x1080)，適應不同螢幕尺寸（如筆記型電腦）。
+    *   可在 **Settings** 選單中即時切換。
 
 ---
 
@@ -151,7 +158,11 @@ python tetris/main.py
 
 1.  **防火牆設定**：請確保 Windows 防火牆允許 Python (或您的終端機) 通過，若連線失敗可嘗試暫時關閉防火牆測試。
 2.  **同一網段**：確保兩台電腦連接到同一個 Wi-Fi 或路由器。
-3.  **IP 位址**：Host 端請確認顯示的 IP 是否為區域網 IP (通常以 `192.168` 或 `10` 開頭)。
+3.  **IP 位址選擇**：
+    *   Host 端現在可以點擊 IP 輸入框來**切換不同的網路介面 IP**。
+    *   若您使用 VPN (如 Hamachi, Radmin VPN) 或學校網路，請確保選擇對應的虛擬網卡 IP。
+4.  **Port 設定**：
+    *   預設 Port 為 `5555`。若該 Port 被佔用或被防火牆阻擋，雙方可約定修改為其他 Port (如 `12345`)。
 
 ---
 
