@@ -135,3 +135,10 @@ rm -rf venv
 ### 刪除 conda 環境
 
 請先離開目前使用中的 conda 環境：
+
+```bash
+conda deactivate
+```
+
+接著刪除指定的 conda 環境（以下以 `tetris-battle` 為例）：
+
