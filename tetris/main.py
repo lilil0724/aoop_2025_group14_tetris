@@ -27,6 +27,8 @@ def main():
             
         # Load and play BGM
         bgm_path = os.path.join(base_path, '2_23_AM_2.mp3')
+        game_bgm_path = os.path.join(base_path, 'tetris_game.mp3') # Game BGM path
+
         if os.path.exists(bgm_path):
             pg.mixer.music.load(bgm_path)
             pg.mixer.music.set_volume(settings.VOLUME) # Set volume from settings
@@ -72,6 +74,15 @@ def main():
         
         current_mode = choice
         
+        # Switch to Game BGM
+        if os.path.exists(game_bgm_path):
+            try:
+                pg.mixer.music.load(game_bgm_path)
+                pg.mixer.music.set_volume(settings.VOLUME)
+                pg.mixer.music.play(-1)
+            except Exception as e:
+                print(f"Error loading game BGM: {e}")
+
         # 3. 進入遊戲
         while True:
             # 將 ai_mode 傳入 run_game
@@ -96,6 +107,15 @@ def main():
                 elif action == "MENU":
                     if net_mgr: net_mgr.close()
                     break
+        
+        # Switch back to Menu BGM
+        if os.path.exists(bgm_path):
+            try:
+                pg.mixer.music.load(bgm_path)
+                pg.mixer.music.set_volume(settings.VOLUME)
+                pg.mixer.music.play(-1)
+            except Exception as e:
+                print(f"Error loading menu BGM: {e}")
 
 if __name__ == "__main__":
     main()
