@@ -142,3 +142,8 @@ conda deactivate
 
 接著刪除指定的 conda 環境（以下以 `tetris-battle` 為例）：
 
+```bash
+conda remove -n tetris-battle --all
+```
+
+tetris-battle 為環境名稱，若建立時使用不同名稱，請替換為實際的環境名稱。
