@@ -39,6 +39,7 @@
 
 ### 使用 Anaconda 建立 Conda 環境
 
+⚠️ **請先前往 Anaconda 官方網站下載並安裝 Anaconda**  
 使用 **Anaconda Powershell Prompt** 建立並管理 conda 環境，之後使用 `conda activate` 即可啟動虛擬環境：
 
 1.  **開啟 Anaconda Powershell Prompt**
