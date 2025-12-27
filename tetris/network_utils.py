@@ -53,6 +53,10 @@ class NetworkManager:
         if not ip_list:
             ip_list.append("127.0.0.1")
             
+        # Always add 0.0.0.0 as a fallback/universal option
+        if "0.0.0.0" not in ip_list:
+            ip_list.append("0.0.0.0")
+            
         return ip_list
 
     def get_local_ip(self):

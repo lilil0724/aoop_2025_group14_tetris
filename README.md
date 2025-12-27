@@ -83,15 +83,15 @@ python tetris/main.py
 
 ### 預設控制鍵位 (可在 Settings 中修改)
 
-| 動作 | 玩家 1 (P1) | 玩家 2 (P2) |
-| :--- | :--- | :--- |
-| **左移** | `A` | `Left Arrow` |
-| **右移** | `D` | `Right Arrow` |
-| **加速下落** | `S` | `Down Arrow` |
-| **順時針旋轉** | `W` | `Up Arrow` |
-| **逆時針旋轉** | `Q` | `L` |
+| 動作                | 玩家 1 (P1)  | 玩家 2 (P2)   |
+| :------------------ | :----------- | :------------ |
+| **左移**            | `A`          | `Left Arrow`  |
+| **右移**            | `D`          | `Right Arrow` |
+| **加速下落**        | `S`          | `Down Arrow`  |
+| **順時針旋轉**      | `W`          | `Up Arrow`    |
+| **逆時針旋轉**      | `Q`          | `L`           |
 | **硬降 (直接到底)** | `Left Shift` | `Right Shift` |
-| **暫停** | `ESC` | `ESC` |
+| **暫停**            | `ESC`        | `ESC`         |
 
 ---
 
@@ -116,7 +116,46 @@ python tetris/main.py
 
 ---
 
-## 4. 刪除環境
+## 4. 遊戲特色與技術細節
+
+本專案實作了許多經典俄羅斯方塊的機制與進階功能：
+
+*   **7-Bag Randomizer (7-Bag 發牌機制)**：
+    為了確保遊戲公平性，我們實作了現代俄羅斯方塊標準的 7-Bag 發牌系統。這保證了每 7 個方塊中一定包含所有形狀（I, J, L, O, S, T, Z）各一次，避免了長時間不出長條 (I) 或特定方塊的情況。
+*   **Ghost Piece (落點投影)**：
+    遊戲支援顯示方塊落點預測 (Ghost)，幫助玩家更精準地預判方塊放置位置。此功能預設開啟，可在 `settings.py` 中調整。
+*   **Advanced AI Algorithms**：
+    *   **Weighted AI**：基於 **Dellacherie's Algorithm**，透過計算 "Landing Height", "Row Transitions", "Holes" 等特徵來評估最佳落點，表現穩定且人性化。
+    *   **Neural Network AI (實驗性)**：專案包含一個基於 PyTorch 的 AI 模型架構 (`ai_player_nn.py`)，作為實驗性功能保留，未來可透過訓練模型來進一步強化 AI。
+
+---
+
+## 5. 專案結構
+
+*   `tetris/`
+    *   `main.py`: 遊戲程式入口，負責初始化與場景切換。
+    *   `game_engine.py`: 核心遊戲迴圈，處理遊戲邏輯與狀態更新。
+    *   `ai_weighted.py`: 基於 Dellacherie 演算法的權重式 AI。
+    *   `ai_heuristic.py`: 啟發式 AI 邏輯。
+    *   `ai_player_nn.py`: (實驗性) 基於類神經網路的 AI 模型。
+    *   `network_utils.py`: 處理區域網路 (LAN) 連線與資料傳輸。
+    *   `pieces.py`: 定義俄羅斯方塊的形狀與旋轉邏輯。
+    *   `settings.py`: 全域設定檔 (按鍵綁定、音量、AI 速度)。
+    *   `ui.py` & `menus.py`: 負責畫面繪製與選單介面。
+
+---
+
+## 6. 區域網對戰疑難排解
+
+如果在使用 **LAN Battle** 模式時無法連線，請檢查以下事項：
+
+1.  **防火牆設定**：請確保 Windows 防火牆允許 Python (或您的終端機) 通過，若連線失敗可嘗試暫時關閉防火牆測試。
+2.  **同一網段**：確保兩台電腦連接到同一個 Wi-Fi 或路由器。
+3.  **IP 位址**：Host 端請確認顯示的 IP 是否為區域網 IP (通常以 `192.168` 或 `10` 開頭)。
+
+---
+
+## 7. 刪除環境
 
 當您不再需要此專案的開發環境時，可依照下列方式刪除虛擬環境。
 
