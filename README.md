@@ -130,3 +130,5 @@ rmdir /s /q venv
 
 # Linux / macOS
 rm -rf venv
+
+### 刪除 conda 環境
