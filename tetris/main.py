@@ -28,6 +28,7 @@ def main():
         # Load and play BGM
         bgm_path = os.path.join(base_path, 'tetris_menu.mp3')
         game_bgm_path = os.path.join(base_path, 'tetris_game.mp3') # Game BGM path
+        result_bgm_path = os.path.join(base_path, 'tetris_result.mp3') # Result BGM path
 
         if os.path.exists(bgm_path):
             pg.mixer.music.load(bgm_path)
@@ -98,11 +99,32 @@ def main():
                 continue 
             
             if isinstance(result, tuple) and result[0] == "GAME_OVER":
+                # Play Result BGM
+                if os.path.exists(result_bgm_path):
+                    try:
+                        pg.mixer.music.stop()
+                        pg.mixer.music.load(result_bgm_path)
+                        pg.mixer.music.set_volume(settings.VOLUME)
+                        pg.mixer.music.play(-1)
+                    except Exception as e:
+                        print(f"Error loading result BGM: {e}")
+
                 action = game_over_screen(screen, result[1])
                 if action == "RESTART":
                     if current_mode == 'LAN':
                         if net_mgr: net_mgr.close()
                         break
+                    
+                    # Switch back to Game BGM for restart
+                    if os.path.exists(game_bgm_path):
+                        try:
+                            pg.mixer.music.stop()
+                            pg.mixer.music.load(game_bgm_path)
+                            pg.mixer.music.set_volume(settings.VOLUME)
+                            pg.mixer.music.play(-1)
+                        except Exception as e:
+                            print(f"Error loading game BGM: {e}")
+                            
                     continue
                 elif action == "MENU":
                     if net_mgr: net_mgr.close()
