@@ -68,14 +68,14 @@ class NetworkManager:
             except:
                 return "127.0.0.1"
 
-    def host_game(self, port=5555, max_players=2):
+    def host_game(self, port=5555, max_players=2, bind_ip="0.0.0.0"):
         self.is_server = True
         self.my_id = 0
         try:
             local_ip = self.get_local_ip()
-            print(f"Hosting on {local_ip}:{port}")
+            print(f"Hosting on {bind_ip}:{port}")
             
-            self.client.bind(("0.0.0.0", port))
+            self.client.bind((bind_ip, port))
             self.client.listen(max_players - 1)
             self.client.settimeout(0.2)
             
@@ -94,7 +94,7 @@ class NetworkManager:
     def join_game(self, ip, port=5555):
         self.is_server = False
         try:
-            self.client.settimeout(5.0) # Set timeout for connection
+            self.client.settimeout(10.0) # Increased timeout for VPN
             self.client.connect((ip, port))
             
             # Wait for handshake (init packet)

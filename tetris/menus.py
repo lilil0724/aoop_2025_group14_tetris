@@ -349,6 +349,12 @@ def lan_menu(screen, font):
     input_w, input_h = 400, 60
     input_rect = pg.Rect(config.width // 2 - input_w // 2, start_y + 160, input_w, input_h)
     
+    # Port Input
+    port_text = "5555"
+    port_active = False
+    port_w, port_h = 100, 60
+    port_rect = pg.Rect(input_rect.right + 20, start_y + 160, port_w, port_h)
+    
     net_mgr = network_utils.NetworkManager()
     all_ips = net_mgr.get_all_ips()
     current_ip_idx = 0
@@ -370,7 +376,7 @@ def lan_menu(screen, font):
         if len(all_ips) > 1:
             btn_cycle_ip.draw(screen)
         
-        # Draw Input Box
+        # Draw Input Box (IP)
         color = (255, 255, 255) if input_active else (150, 150, 150)
         pg.draw.rect(screen, color, input_rect, 2)
         text_surface = font.render(ip_text, True, (255, 255, 255))
@@ -379,14 +385,26 @@ def lan_menu(screen, font):
         label_surf = font.render("Host IP:", True, (200, 200, 200))
         label_rect = label_surf.get_rect(midright=(input_rect.x - 10, input_rect.centery))
         screen.blit(label_surf, label_rect)
+        
+        # Draw Input Box (Port)
+        color_p = (255, 255, 255) if port_active else (150, 150, 150)
+        pg.draw.rect(screen, color_p, port_rect, 2)
+        port_surf = font.render(port_text, True, (255, 255, 255))
+        port_txt_rect = port_surf.get_rect(midleft=(port_rect.x + 10, port_rect.centery))
+        screen.blit(port_surf, port_txt_rect)
+        port_lbl = font.render("Port:", True, (200, 200, 200))
+        port_lbl_rect = port_lbl.get_rect(midright=(port_rect.x - 10, port_rect.centery))
+        screen.blit(port_lbl, port_lbl_rect)
+
         cnt_surf = font.render("Max Players:", True, (200, 200, 200))
         screen.blit(cnt_surf, cnt_surf.get_rect(center=(center_x + btn_w//2, start_y + 280)))
         
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
             if event.type == pg.MOUSEBUTTONDOWN:
-                if input_rect.collidepoint(event.pos): input_active = True
-                else: input_active = False
+                if input_rect.collidepoint(event.pos): input_active = True; port_active = False
+                elif port_rect.collidepoint(event.pos): port_active = True; input_active = False
+                else: input_active = False; port_active = False
                 
                 # Check cycle IP button
                 if len(all_ips) > 1 and btn_cycle_ip.is_clicked(event):
@@ -403,7 +421,13 @@ def lan_menu(screen, font):
                         elif btn.action_code == "HOST":
                             # Use the selected IP for display in lobby
                             local_ip = my_local_ip 
-                            host_thread = threading.Thread(target=net_mgr.host_game, args=(5555, selected_players), daemon=True)
+                            try:
+                                target_port = int(port_text)
+                            except:
+                                target_port = 5555
+                                
+                            # Bind to the specific IP selected by user
+                            host_thread = threading.Thread(target=net_mgr.host_game, args=(target_port, selected_players, local_ip), daemon=True)
                             host_thread.start()
                             waiting = True
                             clock = pg.time.Clock()
@@ -420,14 +444,20 @@ def lan_menu(screen, font):
                                 info_y = config.height//3
                                 txt_ip = font.render(f"Host IP: {local_ip}", True, (255, 215, 0))
                                 screen.blit(txt_ip, txt_ip.get_rect(center=(config.width//2, info_y)))
+                                txt_port = font.render(f"Port: {target_port}", True, (200, 200, 200))
+                                screen.blit(txt_port, txt_port.get_rect(center=(config.width//2, info_y + 30)))
                                 txt_count = font.render(f"Players Connected: {current_players} / {selected_players}", True, (255, 255, 255))
                                 screen.blit(txt_count, txt_count.get_rect(center=(config.width//2, info_y + 60)))
-                                txt_hint = pg.font.SysFont('Arial', 20).render("Share IP. Check Firewall if join fails.", True, (150, 150, 150))
+                                txt_hint = pg.font.SysFont('Arial', 20).render("Share IP & Port. Check Firewall if join fails.", True, (150, 150, 150))
                                 screen.blit(txt_hint, txt_hint.get_rect(center=(config.width//2, info_y + 100)))
                                 btn_start.draw(screen)
                                 pg.display.update(); clock.tick(30)
                         elif btn.action_code == "JOIN":
-                            join_thread = threading.Thread(target=net_mgr.join_game, args=(ip_text,), daemon=True)
+                            try:
+                                target_port = int(port_text)
+                            except:
+                                target_port = 5555
+                            join_thread = threading.Thread(target=net_mgr.join_game, args=(ip_text, target_port), daemon=True)
                             join_thread.start()
                             waiting = True
                             clock = pg.time.Clock()
@@ -468,6 +498,10 @@ def lan_menu(screen, font):
                     if event.key == pg.K_RETURN: input_active = False
                     elif event.key == pg.K_BACKSPACE: ip_text = ip_text[:-1]
                     else: ip_text += event.unicode
+                elif port_active:
+                    if event.key == pg.K_RETURN: port_active = False
+                    elif event.key == pg.K_BACKSPACE: port_text = port_text[:-1]
+                    elif event.unicode.isdigit(): port_text += event.unicode
         for btn in buttons: btn.draw(screen)
         pg.display.update()
 
