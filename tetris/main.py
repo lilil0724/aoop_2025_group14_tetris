@@ -109,6 +109,7 @@ def main():
                     break
         
         # Switch back to Menu BGM
+        pg.mixer.music.stop() # Stop current music
         if os.path.exists(bgm_path):
             try:
                 pg.mixer.music.load(bgm_path)
