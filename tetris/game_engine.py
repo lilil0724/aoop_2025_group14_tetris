@@ -279,8 +279,8 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
         game_is_over = False
         if should_check_win:
             if len(players) > 1:
-                # Multiplayer: End if 0 or 1 survivor left
-                if alive_count <= 1: game_is_over = True
+                # Multiplayer: End only when EVERYONE is dead (Score Attack)
+                if alive_count == 0: game_is_over = True
             else:
                 # Solo: End if 0 survivors
                 if alive_count == 0: game_is_over = True
@@ -302,11 +302,13 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                 time.sleep(0.1)
 
             results = []
+            # Sort by score to determine winner
             sorted_players = sorted(players.values(), key=lambda p: p.shot.score, reverse=True)
             winner_p = sorted_players[0]
-            # 優先判定存活者
-            survivors = [p for p in players.values() if not p.game_over]
-            if len(survivors) > 0: winner_p = survivors[0]
+            
+            # No longer prioritize survivors, purely score based as requested
+            # survivors = [p for p in players.values() if not p.game_over]
+            # if len(survivors) > 0: winner_p = survivors[0]
 
             for pid in sorted(players.keys()):
                 p = players[pid]

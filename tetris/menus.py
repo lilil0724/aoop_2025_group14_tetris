@@ -76,11 +76,14 @@ def settings_menu(screen):
                     config.update_config(new_unit=4, new_width=1280, new_height=720)
                 elif config.width == 1280:
                     config.update_config(new_unit=3, new_width=1024, new_height=576)
+                elif config.width == 1024:
+                    # Add 1920x1080 option
+                    config.update_config(new_unit=7, new_width=1920, new_height=1080)
                 else:
                     config.update_config(new_unit=6, new_width=1600, new_height=900)
                 
                 # Re-init screen
-                pg.display.set_mode((config.width, config.height))
+                pg.display.set_mode((config.width, config.height), pg.RESIZABLE)
                 # Recalculate center positions for this menu
                 center_x = config.width // 2 - btn_w // 2
                 center_y = config.height // 3
@@ -325,14 +328,22 @@ def main_menu(screen, font):
 
     btn_w, btn_h = 200, 60
     center_x = config.width // 2 - btn_w // 2
-    start_y = config.height // 4
+    
+    # Dynamic spacing based on height
+    # If height is small (e.g. 576), use tighter spacing
+    if config.height < 700:
+        start_y = 120
+        spacing = 70
+    else:
+        start_y = config.height // 4
+        spacing = 80
     
     btn_solo = Button(center_x, start_y, btn_w, btn_h, "Solo Mode", "SOLO")
-    btn_pvp = Button(center_x, start_y + 80, btn_w, btn_h, "1v1 Local", "PVP", color=(50, 100, 200))
-    btn_pve = Button(center_x, start_y + 160, btn_w, btn_h, "1vAI Battle", "PVE", color=(200, 50, 50))
-    btn_lan = Button(center_x, start_y + 240, btn_w, btn_h, "LAN Battle", "LAN", color=(150, 50, 150))
-    btn_settings = Button(center_x, start_y + 320, btn_w, btn_h, "Settings", "SETTINGS", color=(100, 100, 100))
-    btn_exit = Button(center_x, start_y + 400, btn_w, btn_h, "Exit Game", "EXIT", color=(50, 50, 50))
+    btn_pvp = Button(center_x, start_y + spacing, btn_w, btn_h, "1v1 Local", "PVP", color=(50, 100, 200))
+    btn_pve = Button(center_x, start_y + spacing*2, btn_w, btn_h, "1vAI Battle", "PVE", color=(200, 50, 50))
+    btn_lan = Button(center_x, start_y + spacing*3, btn_w, btn_h, "LAN Battle", "LAN", color=(150, 50, 150))
+    btn_settings = Button(center_x, start_y + spacing*4, btn_w, btn_h, "Settings", "SETTINGS", color=(100, 100, 100))
+    btn_exit = Button(center_x, start_y + spacing*5, btn_w, btn_h, "Exit Game", "EXIT", color=(50, 50, 50))
     buttons = [btn_solo, btn_pvp, btn_pve, btn_lan, btn_settings, btn_exit]
 
     while True:
@@ -389,10 +400,23 @@ def lan_menu(screen, font):
     # Center X for the input groups
     center_x = config.width // 2
     
-    # Row 1 Y
-    row1_y = start_y + 160
-    # Row 2 Y
-    row2_y = row1_y + 80
+    # Dynamic layout for small screens
+    if config.height < 700:
+        row1_y = start_y + 120
+        row2_y = row1_y + 70
+        btn_2p.rect.y = row2_y + 100
+        btn_3p.rect.y = row2_y + 100
+        btn_4p.rect.y = row2_y + 100
+        btn_back.rect.y = row2_y + 180
+        cnt_surf_y = row2_y + 60
+    else:
+        row1_y = start_y + 160
+        row2_y = row1_y + 80
+        btn_2p.rect.y = row2_y + 120
+        btn_3p.rect.y = row2_y + 120
+        btn_4p.rect.y = row2_y + 120
+        btn_back.rect.y = row2_y + 200
+        cnt_surf_y = row2_y + 80
     
     # IP Input Rect (Centered)
     # Total width approx: Label(100) + Box(300) = 400
@@ -449,7 +473,7 @@ def lan_menu(screen, font):
         screen.blit(port_lbl, port_lbl_rect)
 
         cnt_surf = font.render("Max Players:", True, (200, 200, 200))
-        screen.blit(cnt_surf, cnt_surf.get_rect(center=(center_x, row2_y + 80)))
+        screen.blit(cnt_surf, cnt_surf.get_rect(center=(center_x, cnt_surf_y)))
         
         # Update player buttons position
         btn_2p.rect.y = row2_y + 120
