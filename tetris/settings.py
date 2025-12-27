@@ -8,7 +8,7 @@ SHOW_GHOST = True  # 預設開啟投影
 #  AI 速度等級 (1: Slow, 2: Normal, 3: Fast, 4: God/Instant)
 AI_SPEED_LEVEL = 2
 
-VOLUME = 0.5 # 預設音量
+VOLUME = 0.2 # 預設音量
 
 # Key Bindings
 KEY_BINDINGS = {

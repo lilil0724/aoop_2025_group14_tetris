@@ -20,13 +20,17 @@ def settings_menu(screen):
     center_y = config.height // 3
     
     btn_controls = Button(center_x, center_y + 80, btn_w, btn_h, "Controls", "CONTROLS", color=(50, 100, 200))
+    
+    # Resolution Button
+    res_text = f"Res: {config.width}x{config.height}"
+    btn_res = Button(center_x, center_y + 160, btn_w, btn_h, res_text, "TOGGLE_RES", color=(150, 150, 50))
 
-    btn_back = Button(center_x, center_y + 160, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
+    btn_back = Button(center_x, center_y + 240, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
     
     # Volume Slider
     slider_w, slider_h = 300, 10
     slider_x = config.width // 2 - slider_w // 2
-    slider_y = center_y + 260
+    slider_y = center_y + 340
     volume_slider = Slider(slider_x, slider_y, slider_w, slider_h, 0.0, 1.0, settings.VOLUME)
     
     while True:
@@ -34,7 +38,10 @@ def settings_menu(screen):
         status_color = (50, 200, 50) if settings.SHOW_GHOST else (200, 50, 50)
         btn_ghost = Button(center_x, center_y, btn_w, btn_h, f"Ghost Piece: {status_text}", "TOGGLE_GHOST", color=status_color)
         
-        buttons = [btn_ghost, btn_controls, btn_back]
+        # Update Res Text
+        btn_res.text = f"Res: {config.width}x{config.height}"
+        
+        buttons = [btn_ghost, btn_controls, btn_res, btn_back]
         
         screen.fill(config.background_color)
         title_surf = font_title.render("SETTINGS", True, (255, 255, 255))
@@ -62,6 +69,33 @@ def settings_menu(screen):
             # 新增 Controls 按鈕邏輯
             if btn_controls.is_clicked(event):
                 controls_menu(screen)
+                
+            if btn_res.is_clicked(event):
+                # Toggle Resolution
+                if config.width == 1600:
+                    config.update_config(new_unit=4, new_width=1280, new_height=720)
+                elif config.width == 1280:
+                    config.update_config(new_unit=3, new_width=1024, new_height=576)
+                else:
+                    config.update_config(new_unit=6, new_width=1600, new_height=900)
+                
+                # Re-init screen
+                pg.display.set_mode((config.width, config.height))
+                # Recalculate center positions for this menu
+                center_x = config.width // 2 - btn_w // 2
+                center_y = config.height // 3
+                slider_x = config.width // 2 - slider_w // 2
+                slider_y = center_y + 340
+                # Update buttons rects
+                btn_controls.rect.x = center_x
+                btn_controls.rect.y = center_y + 80
+                btn_res.rect.x = center_x
+                btn_res.rect.y = center_y + 160
+                btn_back.rect.x = center_x
+                btn_back.rect.y = center_y + 240
+                volume_slider.rect.x = slider_x
+                volume_slider.rect.y = slider_y
+                volume_slider.update_handle_pos()
                 
             if btn_back.is_clicked(event):
                 return 
@@ -346,14 +380,32 @@ def lan_menu(screen, font):
     ip_text = "127.0.0.1"
     input_active = False
     # Make input box bigger
-    input_w, input_h = 400, 60
-    input_rect = pg.Rect(config.width // 2 - input_w // 2, start_y + 160, input_w, input_h)
+    input_w, input_h = 300, 60
     
-    # Port Input
+    # Layout:
+    # Row 1: Host IP: [ IP Box ]
+    # Row 2: Port:    [ Port Box ]
+    
+    # Center X for the input groups
+    center_x = config.width // 2
+    
+    # Row 1 Y
+    row1_y = start_y + 160
+    # Row 2 Y
+    row2_y = row1_y + 80
+    
+    # IP Input Rect (Centered)
+    # Total width approx: Label(100) + Box(300) = 400
+    input_rect = pg.Rect(center_x - 100, row1_y, input_w, input_h)
+    
+    # Port Input Rect (Centered)
+    # Total width approx: Label(80) + Box(160) = 240
+    port_w, port_h = 160, 60
+    port_rect = pg.Rect(center_x, row2_y, port_w, port_h)
+    
+    # Port Input State
     port_text = "5555"
     port_active = False
-    port_w, port_h = 100, 60
-    port_rect = pg.Rect(input_rect.right + 20, start_y + 160, port_w, port_h)
     
     net_mgr = network_utils.NetworkManager()
     all_ips = net_mgr.get_all_ips()
@@ -397,7 +449,17 @@ def lan_menu(screen, font):
         screen.blit(port_lbl, port_lbl_rect)
 
         cnt_surf = font.render("Max Players:", True, (200, 200, 200))
-        screen.blit(cnt_surf, cnt_surf.get_rect(center=(center_x + btn_w//2, start_y + 280)))
+        screen.blit(cnt_surf, cnt_surf.get_rect(center=(center_x, row2_y + 80)))
+        
+        # Update player buttons position
+        btn_2p.rect.y = row2_y + 120
+        btn_3p.rect.y = row2_y + 120
+        btn_4p.rect.y = row2_y + 120
+        
+        # Update Start/Back buttons position
+        btn_host.rect.y = start_y
+        btn_join.rect.y = start_y + 80
+        btn_back.rect.y = row2_y + 200
         
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()

@@ -30,16 +30,12 @@ P2_LINE_POS = (P2_INFO_X + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.
 P2_NEXT_PIECE_POS = (P2_INFO_X + 22*unit, rows * grid // 2 - 30*unit)
 
 # Total screen size
-# width = P2_INFO_X + INFO_PANEL_WIDTH
-# height = rows * grid
 width = 1600 
 height = 900
-# --- End 1v1 Config ---.
-
 
 # others
 fps = 60
-difficulty = 30   # 調整降下的速度 (保留您的 30)
+difficulty = 30
 score_count = {
     1: 40,
     2: 100,
@@ -47,6 +43,40 @@ score_count = {
     4: 1200
 }
 font = ('Comic Sans MS', int(100 * (unit / 10)**1.5))
+
+def update_config(new_unit=None, new_width=None, new_height=None):
+    global unit, grid, width, height, font
+    global GARBAGE_BAR_WIDTH, BOARD_WIDTH, INFO_PANEL_WIDTH
+    global P1_GARBAGE_BAR_POS, P1_OFFSET_X, P1_INFO_X, P1_SCORE_POS, P1_LINE_POS, P1_NEXT_PIECE_POS
+    global P2_GARBAGE_BAR_POS, P2_OFFSET_X, P2_INFO_X, P2_SCORE_POS, P2_LINE_POS, P2_NEXT_PIECE_POS
+    
+    if new_unit: unit = new_unit
+    if new_width: width = new_width
+    if new_height: height = new_height
+    
+    grid = 6*unit
+    
+    # Recalculate everything
+    GARBAGE_BAR_WIDTH = 2 * unit 
+    BOARD_WIDTH = columns * grid
+    INFO_PANEL_WIDTH = 50 * unit
+
+    P1_GARBAGE_BAR_POS = (0, 0)
+    P1_OFFSET_X = P1_GARBAGE_BAR_POS[0] + GARBAGE_BAR_WIDTH
+    P1_INFO_X = P1_OFFSET_X + BOARD_WIDTH
+    P1_SCORE_POS = (P1_INFO_X + 10*unit, rows * grid // 2)
+    P1_LINE_POS = (P1_INFO_X + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.5))
+    P1_NEXT_PIECE_POS = (P1_INFO_X + 22*unit, rows * grid // 2 - 30*unit)
+
+    P2_GARBAGE_BAR_POS = (P1_INFO_X + INFO_PANEL_WIDTH, 0)
+    P2_OFFSET_X = P2_GARBAGE_BAR_POS[0] + GARBAGE_BAR_WIDTH
+    P2_INFO_X = P2_OFFSET_X + BOARD_WIDTH
+    P2_SCORE_POS = (P2_INFO_X + 10*unit, rows * grid // 2)
+    P2_LINE_POS = (P2_INFO_X + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.5))
+    P2_NEXT_PIECE_POS = (P2_INFO_X + 22*unit, rows * grid // 2 - 30*unit)
+    
+    font = ('Comic Sans MS', int(100 * (unit / 10)**1.5))
+
 
 ATTACK_BASE = {
     0: 0, # 0 行
