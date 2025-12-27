@@ -42,7 +42,7 @@
 ⚠️ **請先前往 Anaconda 官方網站下載並安裝 Anaconda**  
 👉 https://www.anaconda.com/download
 
-安裝完成後使用 **Anaconda Powershell Prompt** 建立並管理 conda 環境，之後使用 `conda activate` 即可啟動虛擬環境：
+安裝完成後，使用 **Anaconda Powershell Prompt** 建立並管理 conda 環境，之後使用 `conda activate` 即可啟動虛擬環境：
 
 1.  **開啟 Anaconda Powershell Prompt**
 
