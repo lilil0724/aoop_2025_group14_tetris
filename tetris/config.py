@@ -2,7 +2,8 @@ import pygame as pg
 import math 
 
 # scale unit
-unit = 6
+# Default to 1280x720 (Unit=4) for better laptop compatibility
+unit = 4
 grid = 6*unit
 background_color = (33, 47, 60)
 rows = 20
@@ -30,8 +31,8 @@ P2_LINE_POS = (P2_INFO_X + 10*unit, rows * grid // 2 + int(100 * (unit / 10)**1.
 P2_NEXT_PIECE_POS = (P2_INFO_X + 22*unit, rows * grid // 2 - 30*unit)
 
 # Total screen size
-width = 1600 
-height = 900
+width = 1280 
+height = 720
 
 # others
 fps = 60
