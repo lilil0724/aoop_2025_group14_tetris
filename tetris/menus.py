@@ -359,7 +359,7 @@ def lan_menu(screen, font):
         screen.blit(title_surf, title_rect)
 
         # Display Local IP
-        ip_display_surf = font.render(f"Your IP: {my_local_ip}", True, (100, 255, 100))
+        ip_display_surf = font.render(f"Your IP: {my_local_ip} (Port: 5555)", True, (100, 255, 100))
         ip_display_rect = ip_display_surf.get_rect(center=(config.width//2, config.height//8 + 50))
         screen.blit(ip_display_surf, ip_display_rect)
         
@@ -404,7 +404,7 @@ def lan_menu(screen, font):
                                 title_s = font.render("Lobby - Waiting for Players", True, (255, 255, 255))
                                 screen.blit(title_s, title_s.get_rect(center=(config.width//2, config.height//6)))
                                 info_y = config.height//3
-                                txt_ip = font.render(f"Host IP: {local_ip}", True, (255, 215, 0))
+                                txt_ip = font.render(f"Host IP: {local_ip} (Port: 5555)", True, (255, 215, 0))
                                 screen.blit(txt_ip, txt_ip.get_rect(center=(config.width//2, info_y)))
                                 txt_count = font.render(f"Players Connected: {current_players} / {selected_players}", True, (255, 255, 255))
                                 screen.blit(txt_count, txt_count.get_rect(center=(config.width//2, info_y + 60)))
@@ -444,7 +444,7 @@ def lan_menu(screen, font):
                                     if e.type == pg.QUIT: net_mgr.close(); pg.quit(); sys.exit()
                                     if e.type == pg.KEYDOWN and e.key == pg.K_ESCAPE: net_mgr.close(); waiting = False; net_mgr = network_utils.NetworkManager()
                                 screen.fill(config.background_color)
-                                txt1 = font.render(f"Connecting to {ip_text}...", True, (255, 255, 255))
+                                txt1 = font.render(f"Connecting to {ip_text} (Port: 5555)...", True, (255, 255, 255))
                                 txt2 = font.render("Press ESC to Cancel", True, (150, 150, 150))
                                 screen.blit(txt1, txt1.get_rect(center=(config.width//2, config.height//2)))
                                 screen.blit(txt2, txt2.get_rect(center=(config.width//2, config.height//2 + 60)))
