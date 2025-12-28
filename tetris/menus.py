@@ -625,7 +625,13 @@ def game_over_screen(screen, results):
             y = start_y
             
             is_winner = data['is_winner']
-            if is_winner:
+            is_draw = data.get('is_draw', False)
+            
+            if is_draw:
+                border_color = (200, 200, 200) # Silver/White
+                header_text = "DRAW"
+                header_color = (200, 200, 200)
+            elif is_winner:
                 border_color = (255, 215, 0) # Gold
                 header_text = "WINNER"
                 header_color = (255, 215, 0)

@@ -8,7 +8,7 @@ import pieces
 import shots
 import Handler
 import settings
-from ui import draw_player_ui_surface
+from ui import draw_player_ui_surface, Button
 from ai_heuristic import get_ai_move_heuristic
 from ai_weighted import WeightedAI
 from menus import pause_menu
@@ -92,6 +92,8 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
     running = True
     paused = False
     send_timer = 0 
+    surrender_btn = Button(config.width // 2 - 100, config.height - 80, 200, 50, "Surrender", "SURRENDER", color=(200, 50, 50))
+    surrendered = False
     
     while running:
         if paused:
@@ -140,6 +142,11 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
         # --- Event Handling ---
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
+            
+            if mode == 'PVE' and players[0].game_over:
+                if surrender_btn.is_clicked(event):
+                    surrendered = True
+
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE: paused = True
                 
@@ -277,12 +284,12 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
         if mode == 'LAN' and len(players) < 2: should_check_win = False
         
         game_is_over = False
-        if should_check_win:
+        if surrendered:
+            game_is_over = True
+        elif should_check_win:
             if mode == 'PVE':
-                # PVE: 如果玩家 (players[0]) 輸了就直接結束
-                if players[0].game_over: game_is_over = True
-                # 或者 AI 也輸了
-                elif alive_count == 0: game_is_over = True
+                # PVE: 等待 AI 結束，除非玩家投降
+                if alive_count == 0: game_is_over = True
             elif len(players) > 1:
                 # Multiplayer (PVP/LAN): End only when EVERYONE is dead (Score Attack)
                 if alive_count == 0: game_is_over = True
@@ -307,13 +314,22 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                 time.sleep(0.1)
 
             results = []
-            # Sort by score to determine winner
-            sorted_players = sorted(players.values(), key=lambda p: p.shot.score, reverse=True)
-            winner_p = sorted_players[0]
             
-            # No longer prioritize survivors, purely score based as requested
-            # survivors = [p for p in players.values() if not p.game_over]
-            # if len(survivors) > 0: winner_p = survivors[0]
+            is_draw = False
+            winner_p = None
+            
+            if surrendered:
+                # PVE Surrender: Player 0 loses, Player 1 wins
+                if 1 in players: winner_p = players[1]
+            else:
+                # Sort by score to determine winner
+                sorted_players = sorted(players.values(), key=lambda p: p.shot.score, reverse=True)
+                
+                # Check for Draw (if top 2 have same score)
+                if len(sorted_players) > 1 and sorted_players[0].shot.score == sorted_players[1].shot.score:
+                    is_draw = True
+                else:
+                    winner_p = sorted_players[0]
 
             for pid in sorted(players.keys()):
                 p = players[pid]
@@ -322,6 +338,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                     "score": p.shot.score,
                     "lines": p.shot.line_count,
                     "is_winner": (p == winner_p),
+                    "is_draw": is_draw,
                     "is_local": p.is_local
                 })
             return "GAME_OVER", results
@@ -351,6 +368,10 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                 x_pos = start_x + i * (surf_w + gap)
                 screen.blit(surf, (x_pos, y_pos))
                 if p.game_over: _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "DEFEAT")
+            
+            # PVE 模式下，如果玩家輸了但 AI 還在跑，顯示投降按鈕
+            if mode == 'PVE' and players[0].game_over and not game_is_over:
+                surrender_btn.draw(screen)
                      
         else:
             sorted_pids = [my_id] + sorted([pid for pid in players if pid != my_id])
