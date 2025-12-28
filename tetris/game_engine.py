@@ -278,8 +278,13 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
         
         game_is_over = False
         if should_check_win:
-            if len(players) > 1:
-                # Multiplayer: End only when EVERYONE is dead (Score Attack)
+            if mode == 'PVE':
+                # PVE: 如果玩家 (players[0]) 輸了就直接結束
+                if players[0].game_over: game_is_over = True
+                # 或者 AI 也輸了
+                elif alive_count == 0: game_is_over = True
+            elif len(players) > 1:
+                # Multiplayer (PVP/LAN): End only when EVERYONE is dead (Score Attack)
                 if alive_count == 0: game_is_over = True
             else:
                 # Solo: End if 0 survivors
