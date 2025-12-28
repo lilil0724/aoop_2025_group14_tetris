@@ -21,7 +21,7 @@ def get_tetris_features_v8(board):
     col_heights = np.max(height_grid, axis=0)
     landing_height = np.mean(col_heights)
     
-    # 2. Row Transitions     .
+    # 2. Row Transitions    .
     row_trans = 0
     for r in range(rows):
         line = np.insert(grid[r], [0, cols], 1)
