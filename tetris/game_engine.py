@@ -39,11 +39,10 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             
             self.counter = 0
             # 定義所有可能用到的按鍵 ticker
-            self.key_ticker = {k: 0 for k in [
-                pg.K_a, pg.K_s, pg.K_d, pg.K_w, 
-                pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN, pg.K_UP,
-                pg.K_l, pg.K_SPACE, pg.K_RSHIFT
-            ]}
+            all_keys = []
+            for p_binds in settings.KEYBINDS.values():
+                all_keys.extend(p_binds.values())
+            self.key_ticker = {k: 0 for k in all_keys}
             
             self.ai_target_move = None 
             self.ai_act_timer = 0
@@ -148,34 +147,37 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 
                 # --- 模式區分 ---
                 if mode == 'PVP':
-                    # P1: WASD (維持不變)
+                    # P1
                     p1 = players[0]
                     if not p1.game_over:
-                        if event.key == pg.K_w: Handler.rotate(p1.shot, p1.piece)
-                        if event.key == pg.K_s: p1.key_ticker[pg.K_s] = 13; Handler.drop(p1.shot, p1.piece)
-                        if event.key == pg.K_a: p1.key_ticker[pg.K_a] = 13; Handler.moveLeft(p1.shot, p1.piece)
-                        if event.key == pg.K_d: p1.key_ticker[pg.K_d] = 13; Handler.moveRight(p1.shot, p1.piece)
-                        if event.key == pg.K_LSHIFT: Handler.instantDrop(p1.shot, p1.piece) # P1 PVP Hard Drop
+                        kb = settings.KEYBINDS['P1']
+                        if event.key == kb['ROTATE']: Handler.rotate(p1.shot, p1.piece)
+                        if event.key == kb['SOFT_DROP']: p1.key_ticker[kb['SOFT_DROP']] = 13; Handler.drop(p1.shot, p1.piece)
+                        if event.key == kb['LEFT']: p1.key_ticker[kb['LEFT']] = 13; Handler.moveLeft(p1.shot, p1.piece)
+                        if event.key == kb['RIGHT']: p1.key_ticker[kb['RIGHT']] = 13; Handler.moveRight(p1.shot, p1.piece)
+                        if event.key == kb['HARD_DROP_PVP']: Handler.instantDrop(p1.shot, p1.piece)
                     
-                    # P2: Arrows + Right Shift
+                    # P2
                     p2 = players[1]
                     if not p2.game_over:
-                        if event.key == pg.K_UP: Handler.rotate(p2.shot, p2.piece)
-                        if event.key == pg.K_DOWN: p2.key_ticker[pg.K_DOWN] = 13; Handler.drop(p2.shot, p2.piece)
-                        if event.key == pg.K_LEFT: p2.key_ticker[pg.K_LEFT] = 13; Handler.moveLeft(p2.shot, p2.piece)
-                        if event.key == pg.K_RIGHT: p2.key_ticker[pg.K_RIGHT] = 13; Handler.moveRight(p2.shot, p2.piece)
-                        if event.key == pg.K_RSHIFT: Handler.instantDrop(p2.shot, p2.piece) # P2 PVP Hard Drop
+                        kb = settings.KEYBINDS['P2']
+                        if event.key == kb['ROTATE']: Handler.rotate(p2.shot, p2.piece)
+                        if event.key == kb['SOFT_DROP']: p2.key_ticker[kb['SOFT_DROP']] = 13; Handler.drop(p2.shot, p2.piece)
+                        if event.key == kb['LEFT']: p2.key_ticker[kb['LEFT']] = 13; Handler.moveLeft(p2.shot, p2.piece)
+                        if event.key == kb['RIGHT']: p2.key_ticker[kb['RIGHT']] = 13; Handler.moveRight(p2.shot, p2.piece)
+                        if event.key == kb['HARD_DROP']: Handler.instantDrop(p2.shot, p2.piece)
                 
                 else:
-                    # SOLO, PVE, LAN -> WASD + L + Space
+                    # SOLO, PVE, LAN
                     p_local = players[my_id]
                     if not p_local.game_over:
-                        if event.key == pg.K_w: Handler.rotate(p_local.shot, p_local.piece)
-                        if event.key == pg.K_l: Handler.rotateCCW(p_local.shot, p_local.piece)
-                        if event.key == pg.K_s: p_local.key_ticker[pg.K_s] = 13; Handler.drop(p_local.shot, p_local.piece)
-                        if event.key == pg.K_a: p_local.key_ticker[pg.K_a] = 13; Handler.moveLeft(p_local.shot, p_local.piece)
-                        if event.key == pg.K_d: p_local.key_ticker[pg.K_d] = 13; Handler.moveRight(p_local.shot, p_local.piece)
-                        if event.key == pg.K_SPACE: Handler.instantDrop(p_local.shot, p_local.piece)
+                        kb = settings.KEYBINDS['P1']
+                        if event.key == kb['ROTATE']: Handler.rotate(p_local.shot, p_local.piece)
+                        if event.key == kb['ROTATE_CCW']: Handler.rotateCCW(p_local.shot, p_local.piece)
+                        if event.key == kb['SOFT_DROP']: p_local.key_ticker[kb['SOFT_DROP']] = 13; Handler.drop(p_local.shot, p_local.piece)
+                        if event.key == kb['LEFT']: p_local.key_ticker[kb['LEFT']] = 13; Handler.moveLeft(p_local.shot, p_local.piece)
+                        if event.key == kb['RIGHT']: p_local.key_ticker[kb['RIGHT']] = 13; Handler.moveRight(p_local.shot, p_local.piece)
+                        if event.key == kb['HARD_DROP']: Handler.instantDrop(p_local.shot, p_local.piece)
 
         # --- DAS ---
         keys = pg.key.get_pressed()
@@ -188,10 +190,13 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 if p.key_ticker[k] > 0: p.key_ticker[k] -= 1
         
         if mode == 'PVP':
-            do_das(players[0], pg.K_a, pg.K_d, pg.K_s)
-            do_das(players[1], pg.K_LEFT, pg.K_RIGHT, pg.K_DOWN)
+            kb1 = settings.KEYBINDS['P1']
+            do_das(players[0], kb1['LEFT'], kb1['RIGHT'], kb1['SOFT_DROP'])
+            kb2 = settings.KEYBINDS['P2']
+            do_das(players[1], kb2['LEFT'], kb2['RIGHT'], kb2['SOFT_DROP'])
         else:
-            do_das(players[my_id], pg.K_a, pg.K_d, pg.K_s)
+            kb = settings.KEYBINDS['P1']
+            do_das(players[my_id], kb['LEFT'], kb['RIGHT'], kb['SOFT_DROP'])
 
         # --- Game Logic ---
         for pid, p in players.items():

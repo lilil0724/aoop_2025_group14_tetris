@@ -26,7 +26,11 @@ def settings_menu(screen):
         speed_colors = {1: (50, 200, 50), 2: (200, 200, 50), 3: (200, 100, 50), 4: (200, 50, 50)}
         current_color = speed_colors.get(settings.AI_SPEED_LEVEL, (100, 100, 100))
         btn_speed = Button(center_x, center_y + 80, btn_w, btn_h, f"AI Speed: {current_label}", "TOGGLE_SPEED", color=current_color)
-        buttons = [btn_ghost, btn_speed, btn_back]
+        
+        btn_keybind = Button(center_x, center_y + 160, btn_w, btn_h, "Key Bindings", "KEYBIND", color=(50, 100, 150))
+        btn_back = Button(center_x, center_y + 240, btn_w, btn_h, "Back", "BACK", color=(100, 100, 100))
+        
+        buttons = [btn_ghost, btn_speed, btn_keybind, btn_back]
         
         screen.fill(config.background_color)
         title_surf = font_title.render("SETTINGS", True, (255, 255, 255))
@@ -36,8 +40,123 @@ def settings_menu(screen):
             if event.type == pg.QUIT: pg.quit(); sys.exit()
             if btn_ghost.is_clicked(event): settings.SHOW_GHOST = not settings.SHOW_GHOST
             if btn_speed.is_clicked(event): settings.AI_SPEED_LEVEL = (settings.AI_SPEED_LEVEL % 4) + 1
+            if btn_keybind.is_clicked(event): keybind_menu(screen)
             if btn_back.is_clicked(event): return 
         for btn in buttons: btn.draw(screen)
+        pg.display.update()
+
+def keybind_menu(screen):
+    pg.display.set_caption("Key Bindings")
+    font_title = pg.font.SysFont('Comic Sans MS', 40, bold=True)
+    font_label = pg.font.SysFont('Arial', 20)
+    
+    # Helper to get key name
+    def get_key_name(k):
+        return pg.key.name(k).upper()
+
+    # Helper to check conflict
+    def is_key_used(new_key):
+        for p in settings.KEYBINDS:
+            for action, k in settings.KEYBINDS[p].items():
+                if k == new_key:
+                    return True
+        return False
+
+    waiting_for_key = None # (player, action)
+    warning_msg = ""
+    warning_timer = 0
+    
+    btn_back = Button(config.width//2 - 100, config.height - 80, 200, 50, "Back", "BACK", color=(100, 100, 100))
+    
+    while True:
+        screen.fill(config.background_color)
+        title_surf = font_title.render("KEY BINDINGS", True, (255, 255, 255))
+        screen.blit(title_surf, title_surf.get_rect(center=(config.width//2, 50)))
+        
+        # Draw P1 Column
+        p1_x = config.width // 4
+        p1_title = font_title.render("PLAYER 1", True, (100, 200, 255))
+        screen.blit(p1_title, p1_title.get_rect(center=(p1_x, 120)))
+        
+        # Draw P2 Column
+        p2_x = 3 * config.width // 4
+        p2_title = font_title.render("PLAYER 2", True, (255, 100, 100))
+        screen.blit(p2_title, p2_title.get_rect(center=(p2_x, 120)))
+        
+        # Draw Buttons
+        buttons = [btn_back]
+        
+        y_start = 180
+        gap = 60
+        
+        # Actions to bind
+        common_actions = ['ROTATE', 'SOFT_DROP', 'LEFT', 'RIGHT', 'HARD_DROP']
+        
+        for i, action in enumerate(common_actions):
+            y = y_start + i * gap
+            
+            # P1 Button
+            key_p1 = settings.KEYBINDS['P1'].get(action)
+            txt_p1 = f"{action}: {get_key_name(key_p1)}" if key_p1 else f"{action}: N/A"
+            color_p1 = (50, 150, 200)
+            if waiting_for_key == ('P1', action):
+                txt_p1 = "PRESS KEY..."
+                color_p1 = (255, 200, 50)
+            
+            btn_p1 = Button(p1_x - 120, y, 240, 40, txt_p1, f"P1_{action}", color=color_p1)
+            btn_p1.font = font_label
+            buttons.append(btn_p1)
+            
+            # P2 Button
+            key_p2 = settings.KEYBINDS['P2'].get(action)
+            txt_p2 = f"{action}: {get_key_name(key_p2)}" if key_p2 else f"{action}: N/A"
+            color_p2 = (200, 100, 100)
+            if waiting_for_key == ('P2', action):
+                txt_p2 = "PRESS KEY..."
+                color_p2 = (255, 200, 50)
+                
+            btn_p2 = Button(p2_x - 120, y, 240, 40, txt_p2, f"P2_{action}", color=color_p2)
+            btn_p2.font = font_label
+            buttons.append(btn_p2)
+
+        # Extra P1 keys (CCW, PVP Hard Drop)
+        # Just hardcode positions for now or add to list
+        
+        # Handle events
+        for event in pg.event.get():
+            if event.type == pg.QUIT: pg.quit(); sys.exit()
+            
+            if waiting_for_key:
+                if event.type == pg.KEYDOWN:
+                    if event.key == pg.K_ESCAPE:
+                        waiting_for_key = None
+                        warning_msg = ""
+                    else:
+                        # Check conflict
+                        if is_key_used(event.key):
+                            warning_msg = f"Key '{get_key_name(event.key)}' is already in use!"
+                            warning_timer = 60
+                        else:
+                            player, action = waiting_for_key
+                            settings.KEYBINDS[player][action] = event.key
+                            waiting_for_key = None
+                            warning_msg = ""
+            else:
+                if btn_back.is_clicked(event): return
+                for btn in buttons:
+                    if btn.is_clicked(event):
+                        if btn.action_code.startswith("P1_") or btn.action_code.startswith("P2_"):
+                            parts = btn.action_code.split("_", 1)
+                            waiting_for_key = (parts[0], parts[1])
+                            warning_msg = ""
+                            
+        for btn in buttons: btn.draw(screen)
+        
+        if warning_msg and warning_timer > 0:
+            warn_surf = font_label.render(warning_msg, True, (255, 50, 50))
+            screen.blit(warn_surf, warn_surf.get_rect(center=(config.width//2, config.height - 140)))
+            warning_timer -= 1
+        
         pg.display.update()
 
 # --- Pause Menu ---
