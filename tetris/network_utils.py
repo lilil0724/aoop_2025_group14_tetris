@@ -365,6 +365,11 @@ class NetworkManager:
                     self._send_packet(sock, {'type': 'shutdown'})
                 except:
                     pass
+                try:
+                    sock.close()
+                except:
+                    pass
+            self.clients = {}
         self.running = False
         if self.client: self.client.close()
 

@@ -307,6 +307,10 @@ def pause_menu(screen, net_mgr=None, mode=None):
         pg.display.update()
         
         while True:
+            # If host left / disconnected, return to main menu
+            if not net_mgr.connected:
+                return "MENU"
+
             # Check for resume signal
             if not net_mgr.paused:
                 return "RESUME"
@@ -679,6 +683,10 @@ def game_over_screen(screen, results, net_mgr=None):
     buttons = [btn_restart, btn_menu]
     
     while True:
+        # If host left / disconnected, return to main menu
+        if net_mgr and not net_mgr.connected:
+            return "MENU"
+
         s = pg.Surface((config.width, config.height))
         s.set_alpha(10) 
         screen.fill((20, 20, 20))
