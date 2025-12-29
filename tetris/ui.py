@@ -40,7 +40,67 @@ class Button:
                 return True
         return False
 
-# --- 輔助功能 ---
+class Slider:
+    def __init__(self, x, y, w, h, min_val, max_val, initial_val, color=(200, 200, 200), handle_color=(50, 150, 250)):
+        self.rect = pg.Rect(x, y, w, h)
+        self.min_val = min_val
+        self.max_val = max_val
+        self.value = initial_val
+        self.color = color
+        self.handle_color = handle_color
+        self.dragging = False
+        
+        # Handle (Knob)
+        self.handle_w = h + 10
+        self.handle_h = h + 10
+        self.handle_rect = pg.Rect(0, 0, self.handle_w, self.handle_h)
+        self.update_handle_pos()
+
+    def update_handle_pos(self):
+        # Map value to x position
+        ratio = (self.value - self.min_val) / (self.max_val - self.min_val)
+        center_x = self.rect.x + ratio * self.rect.w
+        self.handle_rect.center = (center_x, self.rect.centery)
+
+    def update_value_from_pos(self, x):
+        # Map x position to value
+        # Clamp x
+        x = max(self.rect.x, min(x, self.rect.right))
+        ratio = (x - self.rect.x) / self.rect.w
+        self.value = self.min_val + ratio * (self.max_val - self.min_val)
+        self.update_handle_pos()
+
+    def handle_event(self, event):
+        if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+            if self.handle_rect.collidepoint(event.pos) or self.rect.collidepoint(event.pos):
+                self.dragging = True
+                self.update_value_from_pos(event.pos[0])
+                return True # Value changed
+        
+        elif event.type == pg.MOUSEBUTTONUP and event.button == 1:
+            self.dragging = False
+            
+        elif event.type == pg.MOUSEMOTION:
+            if self.dragging:
+                self.update_value_from_pos(event.pos[0])
+                return True # Value changed
+                
+        return False
+
+    def draw(self, screen):
+        # Draw Track
+        pg.draw.rect(screen, self.color, self.rect, border_radius=self.rect.height//2)
+        
+        # Draw Filled Track (Left of handle)
+        fill_rect = pg.Rect(self.rect.x, self.rect.y, self.handle_rect.centerx - self.rect.x, self.rect.height)
+        if fill_rect.width > 0:
+            pg.draw.rect(screen, self.handle_color, fill_rect, border_radius=self.rect.height//2)
+
+        # Draw Handle
+        pg.draw.rect(screen, (255, 255, 255), self.handle_rect, border_radius=self.handle_h//2)
+        pg.draw.rect(screen, self.handle_color, self.handle_rect, 2, border_radius=self.handle_h//2)
+
+# --- 輔助功能: 投影位置計算 ---
 def get_ghost_piece(shot, piece):
     ghost = copy.deepcopy(piece)
     while True:

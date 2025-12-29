@@ -8,7 +8,7 @@ import pieces
 import shots
 import Handler
 import settings
-from ui import draw_player_ui_surface
+from ui import draw_player_ui_surface, Button
 from ai_heuristic import get_ai_move_heuristic
 from ai_weighted import WeightedAI
 from menus import pause_menu
@@ -19,7 +19,7 @@ def get_new_bag():
     random.shuffle(bag)
     return bag
 
-def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
+def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None):
     
     class PlayerContext:
         def __init__(self, is_local=False, is_ai=False, name="Player"):
@@ -39,10 +39,8 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
             
             self.counter = 0
             # 定義所有可能用到的按鍵 ticker
-            all_keys = []
-            for p_binds in settings.KEYBINDS.values():
-                all_keys.extend(p_binds.values())
-            self.key_ticker = {k: 0 for k in all_keys}
+            self.key_ticker = {k: 0 for k in settings.KEY_BINDINGS.values()}
+            self.key_ticker[pg.K_SPACE] = 0 # 額外支援 Space
             
             self.ai_target_move = None 
             self.ai_act_timer = 0
@@ -94,6 +92,8 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
     running = True
     paused = False
     send_timer = 0 
+    surrender_btn = Button(config.width // 2 - 100, config.height - 80, 200, 50, "Surrender", "SURRENDER", color=(200, 50, 50))
+    surrendered = False
     
     while running:
         if paused:
@@ -142,61 +142,62 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
         # --- Event Handling ---
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
+            
+            if mode == 'PVE' and players[0].game_over:
+                if surrender_btn.is_clicked(event):
+                    surrendered = True
+
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE: paused = True
                 
                 # --- 模式區分 ---
                 if mode == 'PVP':
-                    # P1
+                    # P1: 使用設定鍵位
                     p1 = players[0]
                     if not p1.game_over:
-                        kb = settings.KEYBINDS['P1']
-                        if event.key == kb['ROTATE']: Handler.rotate(p1.shot, p1.piece)
-                        if event.key == kb['SOFT_DROP']: p1.key_ticker[kb['SOFT_DROP']] = 13; Handler.drop(p1.shot, p1.piece)
-                        if event.key == kb['LEFT']: p1.key_ticker[kb['LEFT']] = 13; Handler.moveLeft(p1.shot, p1.piece)
-                        if event.key == kb['RIGHT']: p1.key_ticker[kb['RIGHT']] = 13; Handler.moveRight(p1.shot, p1.piece)
-                        if event.key == kb['HARD_DROP_PVP']: Handler.instantDrop(p1.shot, p1.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_ROTATE']: Handler.rotate(p1.shot, p1.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_ROTATE_CCW']: Handler.rotateCCW(p1.shot, p1.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_DOWN']: p1.key_ticker[event.key] = 13; Handler.drop(p1.shot, p1.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_LEFT']: p1.key_ticker[event.key] = 13; Handler.moveLeft(p1.shot, p1.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_RIGHT']: p1.key_ticker[event.key] = 13; Handler.moveRight(p1.shot, p1.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_DROP']: Handler.instantDrop(p1.shot, p1.piece)
                     
-                    # P2
+                    # P2: 使用設定鍵位
                     p2 = players[1]
                     if not p2.game_over:
-                        kb = settings.KEYBINDS['P2']
-                        if event.key == kb['ROTATE']: Handler.rotate(p2.shot, p2.piece)
-                        if event.key == kb['SOFT_DROP']: p2.key_ticker[kb['SOFT_DROP']] = 13; Handler.drop(p2.shot, p2.piece)
-                        if event.key == kb['LEFT']: p2.key_ticker[kb['LEFT']] = 13; Handler.moveLeft(p2.shot, p2.piece)
-                        if event.key == kb['RIGHT']: p2.key_ticker[kb['RIGHT']] = 13; Handler.moveRight(p2.shot, p2.piece)
-                        if event.key == kb['HARD_DROP']: Handler.instantDrop(p2.shot, p2.piece)
+                        if event.key == settings.KEY_BINDINGS['P2_ROTATE']: Handler.rotate(p2.shot, p2.piece)
+                        if event.key == settings.KEY_BINDINGS['P2_ROTATE_CCW']: Handler.rotateCCW(p2.shot, p2.piece)
+                        if event.key == settings.KEY_BINDINGS['P2_DOWN']: p2.key_ticker[event.key] = 13; Handler.drop(p2.shot, p2.piece)
+                        if event.key == settings.KEY_BINDINGS['P2_LEFT']: p2.key_ticker[event.key] = 13; Handler.moveLeft(p2.shot, p2.piece)
+                        if event.key == settings.KEY_BINDINGS['P2_RIGHT']: p2.key_ticker[event.key] = 13; Handler.moveRight(p2.shot, p2.piece)
+                        if event.key == settings.KEY_BINDINGS['P2_DROP']: Handler.instantDrop(p2.shot, p2.piece)
                 
                 else:
-                    # SOLO, PVE, LAN
+                    # SOLO, PVE, LAN -> 統一使用 P1 鍵位，並額外支援 Space
                     p_local = players[my_id]
                     if not p_local.game_over:
-                        kb = settings.KEYBINDS['P1']
-                        if event.key == kb['ROTATE']: Handler.rotate(p_local.shot, p_local.piece)
-                        if event.key == kb['ROTATE_CCW']: Handler.rotateCCW(p_local.shot, p_local.piece)
-                        if event.key == kb['SOFT_DROP']: p_local.key_ticker[kb['SOFT_DROP']] = 13; Handler.drop(p_local.shot, p_local.piece)
-                        if event.key == kb['LEFT']: p_local.key_ticker[kb['LEFT']] = 13; Handler.moveLeft(p_local.shot, p_local.piece)
-                        if event.key == kb['RIGHT']: p_local.key_ticker[kb['RIGHT']] = 13; Handler.moveRight(p_local.shot, p_local.piece)
-                        if event.key == kb['HARD_DROP']: Handler.instantDrop(p_local.shot, p_local.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_ROTATE']: Handler.rotate(p_local.shot, p_local.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_ROTATE_CCW']: Handler.rotateCCW(p_local.shot, p_local.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_DOWN']: p_local.key_ticker[event.key] = 13; Handler.drop(p_local.shot, p_local.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_LEFT']: p_local.key_ticker[event.key] = 13; Handler.moveLeft(p_local.shot, p_local.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_RIGHT']: p_local.key_ticker[event.key] = 13; Handler.moveRight(p_local.shot, p_local.piece)
+                        if event.key == settings.KEY_BINDINGS['P1_DROP'] or event.key == pg.K_SPACE: Handler.instantDrop(p_local.shot, p_local.piece)
 
         # --- DAS ---
         keys = pg.key.get_pressed()
         def do_das(p, k_l, k_r, k_d):
             if p.game_over: return
-            if keys[k_l] and p.key_ticker[k_l] == 0: p.key_ticker[k_l] = 6; Handler.moveLeft(p.shot, p.piece)
-            if keys[k_r] and p.key_ticker[k_r] == 0: p.key_ticker[k_r] = 6; Handler.moveRight(p.shot, p.piece)
-            if keys[k_d] and p.key_ticker[k_d] == 0: p.key_ticker[k_d] = 6; Handler.drop(p.shot, p.piece)
+            if keys[k_l] and p.key_ticker.get(k_l, 0) == 0: p.key_ticker[k_l] = 6; Handler.moveLeft(p.shot, p.piece)
+            if keys[k_r] and p.key_ticker.get(k_r, 0) == 0: p.key_ticker[k_r] = 6; Handler.moveRight(p.shot, p.piece)
+            if keys[k_d] and p.key_ticker.get(k_d, 0) == 0: p.key_ticker[k_d] = 6; Handler.drop(p.shot, p.piece)
             for k in p.key_ticker:
                 if p.key_ticker[k] > 0: p.key_ticker[k] -= 1
         
         if mode == 'PVP':
-            kb1 = settings.KEYBINDS['P1']
-            do_das(players[0], kb1['LEFT'], kb1['RIGHT'], kb1['SOFT_DROP'])
-            kb2 = settings.KEYBINDS['P2']
-            do_das(players[1], kb2['LEFT'], kb2['RIGHT'], kb2['SOFT_DROP'])
+            do_das(players[0], settings.KEY_BINDINGS['P1_LEFT'], settings.KEY_BINDINGS['P1_RIGHT'], settings.KEY_BINDINGS['P1_DOWN'])
+            do_das(players[1], settings.KEY_BINDINGS['P2_LEFT'], settings.KEY_BINDINGS['P2_RIGHT'], settings.KEY_BINDINGS['P2_DOWN'])
         else:
-            kb = settings.KEYBINDS['P1']
-            do_das(players[my_id], kb['LEFT'], kb['RIGHT'], kb['SOFT_DROP'])
+            do_das(players[my_id], settings.KEY_BINDINGS['P1_LEFT'], settings.KEY_BINDINGS['P1_RIGHT'], settings.KEY_BINDINGS['P1_DOWN'])
 
         # --- Game Logic ---
         for pid, p in players.items():
@@ -236,6 +237,12 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 if p.is_ai: p.ai_target_move = None 
                 
                 clears, all_clear = Handler.eliminateFilledRows(p.shot, p.piece)
+
+                if p.is_local and sounds:
+                    if clears == 4 and 'tetris' in sounds:
+                        sounds['tetris'].play()
+                    elif clears > 0 and 'clear' in sounds:
+                        sounds['clear'].play()
                 
                 if clears == 4: p.shot.tetris_timer = 60
                 if all_clear: p.shot.all_clear_timer = 60 
@@ -276,13 +283,53 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
         should_check_win = True
         if mode == 'LAN' and len(players) < 2: should_check_win = False
         
-        if should_check_win and alive_count == 0:
+        game_is_over = False
+        if surrendered:
+            game_is_over = True
+        elif should_check_win:
+            if mode == 'PVE':
+                # PVE: 等待 AI 結束，除非玩家投降
+                if alive_count == 0: game_is_over = True
+            elif len(players) > 1:
+                # Multiplayer (PVP/LAN): End only when EVERYONE is dead (Score Attack)
+                if alive_count == 0: game_is_over = True
+            else:
+                # Solo: End if 0 survivors
+                if alive_count == 0: game_is_over = True
+        
+        if game_is_over:
+            # Send final state immediately to ensure others know I'm dead/game over
+            if mode == 'LAN' and net_mgr:
+                me = players[my_id]
+                local_data = {
+                    'status': me.shot.status, 'color': me.shot.color, 'score': me.shot.score,
+                    'lines': me.shot.line_count, 'pending_garbage': me.shot.pending_garbage,
+                    'piece_x': me.piece.x, 'piece_y': me.piece.y, 'piece_shape': me.piece.shape,
+                    'piece_rot': me.piece.rotation, 'piece_color': me.piece.color,
+                    'next_piece_shape': me.next_piece.shape, 'next_piece_color': me.next_piece.color,
+                    'game_over': me.game_over
+                }
+                net_mgr.send(local_data)
+                # Give a tiny bit of time for the packet to go out
+                time.sleep(0.1)
+
             results = []
-            sorted_players = sorted(players.values(), key=lambda p: p.shot.score, reverse=True)
-            winner_p = sorted_players[0]
-            # 優先判定存活者
-            survivors = [p for p in players.values() if not p.game_over]
-            if len(survivors) > 0: winner_p = survivors[0]
+            
+            is_draw = False
+            winner_p = None
+            
+            if surrendered:
+                # PVE Surrender: Player 0 loses, Player 1 wins
+                if 1 in players: winner_p = players[1]
+            else:
+                # Sort by score to determine winner
+                sorted_players = sorted(players.values(), key=lambda p: p.shot.score, reverse=True)
+                
+                # Check for Draw (if top 2 have same score)
+                if len(sorted_players) > 1 and sorted_players[0].shot.score == sorted_players[1].shot.score:
+                    is_draw = True
+                else:
+                    winner_p = sorted_players[0]
 
             for pid in sorted(players.keys()):
                 p = players[pid]
@@ -291,6 +338,7 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                     "score": p.shot.score,
                     "lines": p.shot.line_count,
                     "is_winner": (p == winner_p),
+                    "is_draw": is_draw,
                     "is_local": p.is_local
                 })
             return "GAME_OVER", results
@@ -320,6 +368,10 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None):
                 x_pos = start_x + i * (surf_w + gap)
                 screen.blit(surf, (x_pos, y_pos))
                 if p.game_over: _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "DEFEAT")
+            
+            # PVE 模式下，如果玩家輸了但 AI 還在跑，顯示投降按鈕
+            if mode == 'PVE' and players[0].game_over and not game_is_over:
+                surrender_btn.draw(screen)
                      
         else:
             sorted_pids = [my_id] + sorted([pid for pid in players if pid != my_id])

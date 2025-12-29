@@ -27,6 +27,38 @@ class NetworkManager:
         
         self.game_started = False # [NEW] Game start flag
 
+    def get_all_ips(self):
+        ip_list = []
+        try:
+            # Method 1: Connect to internet (default route)
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            if ip not in ip_list and not ip.startswith("127."):
+                ip_list.append(ip)
+        except:
+            pass
+            
+        try:
+            # Method 2: Hostname resolution
+            hostname = socket.gethostname()
+            ips = socket.gethostbyname_ex(hostname)[2]
+            for ip in ips:
+                if ip not in ip_list and not ip.startswith("127."):
+                    ip_list.append(ip)
+        except:
+            pass
+            
+        if not ip_list:
+            ip_list.append("127.0.0.1")
+            
+        # Always add 0.0.0.0 as a fallback/universal option
+        if "0.0.0.0" not in ip_list:
+            ip_list.append("0.0.0.0")
+            
+        return ip_list
+
     def get_local_ip(self):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -40,16 +72,19 @@ class NetworkManager:
             except:
                 return "127.0.0.1"
 
-    def host_game(self, port=5555, max_players=2):
+    def host_game(self, port=5555, max_players=2, bind_ip="0.0.0.0"):
         self.is_server = True
         self.my_id = 0
         try:
             local_ip = self.get_local_ip()
-            print(f"Hosting on {local_ip}:{port}")
+            print(f"Hosting on {bind_ip}:{port}")
             
-            self.client.bind(("0.0.0.0", port))
+            self.client.bind((bind_ip, port))
             self.client.listen(max_players - 1)
             self.client.settimeout(0.2)
+            
+            print("Server started. If clients cannot connect, please check your FIREWALL settings.")
+            print("Ensure python.exe is allowed to accept incoming connections.")
             
             self.server_garbage_tracking[0] = 0
             self.server_garbage_received[0] = 0
@@ -63,7 +98,7 @@ class NetworkManager:
     def join_game(self, ip, port=5555):
         self.is_server = False
         try:
-            self.client.settimeout(5.0) # Set timeout for connection
+            self.client.settimeout(10.0) # Increased timeout for VPN
             self.client.connect((ip, port))
             
             # Wait for handshake (init packet)
