@@ -10,19 +10,123 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
             color: #333;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px;
+            margin: 0;
+            padding: 0;
             background-color: #f4f4f9;
+        }
+
+        /* --- Slide deck layout --- */
+        #deck {
+            min-height: 100vh;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+        }
+
+        header.deck-header {
+            position: sticky;
+            top: 0;
+            background: rgba(244, 244, 249, 0.92);
+            backdrop-filter: blur(6px);
+            border-bottom: 1px solid #e6e6ef;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            z-index: 10;
+        }
+
+        .deck-title {
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .deck-hint {
+            font-size: 12.5px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        .deck-counter {
+            font-size: 12.5px;
+            color: #6b7280;
+            white-space: nowrap;
+        }
+
+        main.deck-stage {
+            display: grid;
+            place-items: center;
+            padding: 18px;
+        }
+
+        .slides {
+            width: min(980px, calc(100vw - 36px));
         }
 
         .slide {
             background: white;
             padding: 40px;
-            margin-bottom: 30px;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             border-left: 5px solid #2c3e50;
+            display: none;
+            min-height: min(72vh, 720px);
+            box-sizing: border-box;
+        }
+
+        .slide.active {
+            display: block;
+        }
+
+        footer.deck-footer {
+            position: sticky;
+            bottom: 0;
+            background: rgba(244, 244, 249, 0.92);
+            backdrop-filter: blur(6px);
+            border-top: 1px solid #e6e6ef;
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        button.nav-btn {
+            appearance: none;
+            border: 1px solid #d0d6df;
+            background: #ffffff;
+            color: #2c3e50;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        button.nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress {
+            width: 280px;
+            max-width: 40vw;
+            height: 8px;
+            border-radius: 999px;
+            background: #e8edf5;
+            overflow: hidden;
+        }
+
+        .progress > div {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #3498db, #7c3aed);
+            transition: width 200ms ease;
         }
 
         h1,
@@ -96,6 +200,21 @@
             border-radius: 5px;
             border-left: 4px solid #3498db;
         }
+
+        .link-btn {
+            appearance: none;
+            border: 1px solid #d0d6df;
+            background: #ffffff;
+            color: #2c3e50;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .link-btn.secondary {
+            background: #f4f6fa;
+        }
     </style>
     <!-- Mermaid JS for rendering diagrams -->
     <script type="module">
@@ -106,9 +225,22 @@
 
 <body>
 
+    <div id="deck">
+        <header class="deck-header">
+            <div>
+                <div class="deck-title">Tetris Battle - 專案簡報</div>
+            </div>
+            <div class="deck-counter" id="deckCounter">1 / 1</div>
+        </header>
+
+        <main class="deck-stage">
+            <div class="slides" id="slides">
+
     <div class="slide">
         <h1>Tetris Battle - 專案簡報</h1>
         <p style="text-align: center; font-size: 1.2em; color: #666;">Group 14</p>
+        <p style="text-align: center; font-size: 1.05em; color: #666; margin-top: 10px;">112511016 黃柏凱</p>
+        <p style="text-align: center; font-size: 1.05em; color: #666; margin-top: 6px;">112511018 張斈宇</p>
     </div>
 
     <div class="slide">
@@ -153,89 +285,59 @@
 
     <div class="slide">
         <h2>3. OOP Class Diagram (類別圖)</h2>
-        <div class="mermaid">
-            classDiagram
-            direction TB
+        <div id="classDiagramBlock">
+                <pre class="mermaid">classDiagram
+    direction TB
 
-            %% Layer 1 (Top): Entry point
-            class Main {
-            +main()
-            }
+    class Main {
+        +main()
+    }
 
-            %% Layer 2: Game loop / orchestration (module)
-            class game_engine {
-            +run_game(...)
-            +get_new_bag()
-            }
+    class GameEngine {
+        +run_game()
+    }
 
-            %% Layer 3: Per-player runtime context (inner class)
-            class PlayerContext {
-            +Shot shot
-            +Piece piece
-            +Piece next_piece
-            +list bag
-            +bool is_ai
-            +bool is_local
-            +str name
-            +object ai_agent
-            }
+    class PlayerContext {
+        +shot: Shot
+        +piece: Piece
+        +is_ai: bool
+    }
 
-            %% Layer 4: Data objects & services
-            class Shot {
-            +list status
-            +list color
-            +int score
-            +int line_count
-            +int pending_garbage
-            +int combo_count
-            +bool is_b2b
-            }
+    class Shot {
+        +status: list
+        +score: int
+    }
 
-            class Piece {
-            +int x
-            +int y
-            +str shape
-            +int rotation
-            +tuple color
-            +bool is_fixed
-            +getCells()
-            }
+    class Piece {
+        +shape: string
+        +rotation: int
+    }
 
-            class Handler {
-            +moveLeft(shot, piece)
-            +moveRight(shot, piece)
-            +drop(shot, piece)
-            +instantDrop(shot, piece)
-            +rotate(shot, piece)
-            +rotateCCW(shot, piece)
-            +fixPiece(shot, piece)
-            +eliminateFilledRows(shot, piece)
-            +calculateAttack(...)
-            +insertGarbage(shot, lines_to_add)
-            -_can_move(shot, piece, dx, dy)
-            }
+    class Handler {
+        +move()
+        +rotate()
+        +eliminateRows()
+    }
 
-            class Button {
-            +rect
-            +text
-            +draw(screen)
-            +is_clicked(event)
-            }
+    class AI_Module {
+        +WeightedAI()
+        +HeuristicAI()
+    }
 
-            class WeightedAI {
-            +weights : list
-            +get_best_move(board, piece)
-            +get_features(board)
-            }
+    class NetworkManager {
+        +host_game()
+        +join_game()
+    }
 
-            Main --> GameEngine : Calls
-            GameEngine *-- PlayerContext : Manages
-            PlayerContext o-- Piece : Has Current/Next
-            PlayerContext o-- Shot : Has Board State
-            PlayerContext ..> Handler : Uses for Logic
-            GameEngine ..> Button : Uses in UI
-            PlayerContext o-- WeightedAI : Uses Strategy
-        </div>
+    Main --> GameEngine
+    GameEngine *-- PlayerContext
+    PlayerContext o-- Shot
+    PlayerContext o-- Piece
+    PlayerContext ..> Handler
+    PlayerContext o-- AI_Module
+    GameEngine ..> NetworkManager
+</pre>
+    </div>
     </div>
 
     <div class="slide">
@@ -290,12 +392,16 @@
         </table>
 
         <h3>實作細節</h3>
-        <p>AI 透過評估當前盤面的特徵來決定最佳落點：</p>
+        <p>AI 透過評估當前盤面的特徵來決定最佳落點，總共包含 <strong>8 個核心權重</strong>：</p>
         <ul>
-            <li><strong>Landing Height</strong>: 落點高度 (越低越好)</li>
-            <li><strong>Holes</strong>: 空洞數量 (越少越好)</li>
-            <li><strong>Row Transitions</strong>: 表面平整度 (越平整越好)</li>
-            <li><strong>Well Depth</strong>: 豎井深度 (適度保留以消四排)</li>
+            <li><strong>Landing Height</strong>: 落點高度 (越低越好，避免過早堆疊)。</li>
+            <li><strong>Max Height</strong>: 盤面最高點高度 (控制整體高度)。</li>
+            <li><strong>Holes</strong>: 空洞數量 (越少越好，洞會阻礙消行)。</li>
+            <li><strong>Row Transitions</strong>: 行變換次數 (表面平整度，越平整越好)。</li>
+            <li><strong>Column Transitions</strong>: 列變換次數 (垂直方向的平整度)。</li>
+            <li><strong>Well Sums / Depth</strong>: 豎井深度 (適度保留以利於一次消除四排 Tetris)。</li>
+            <li><strong>Deep Wells</strong>: 深度大於等於 2 的深井數量。</li>
+            <li><strong>Cumulative Wells</strong>: 累計井分 (對井的深度進行加權懲罰)。</li>
         </ul>
     </div>
 
@@ -307,6 +413,81 @@
             <li>選擇了最適合專案規模的 AI 演算法，在效能與強度之間取得平衡。</li>
         </ul>
     </div>
+
+            </div>
+        </main>
+
+        <footer class="deck-footer">
+            <div class="progress" aria-label="Slide progress"><div id="progressFill"></div></div>
+            <div class="nav">
+                <button class="nav-btn" id="prevBtn">上一頁</button>
+                <button class="nav-btn" id="nextBtn">下一頁</button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        (function () {
+            const slides = Array.from(document.querySelectorAll('#slides .slide'));
+            const counter = document.getElementById('deckCounter');
+            const progressFill = document.getElementById('progressFill');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+
+            function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+
+            function getIndexFromHash() {
+                const m = (location.hash || '').match(/^#(\d+)$/);
+                if (!m) return 0;
+                const n = parseInt(m[1], 10);
+                if (!Number.isFinite(n)) return 0;
+                return clamp(n - 1, 0, slides.length - 1);
+            }
+
+            let idx = 0;
+
+            function render() {
+                slides.forEach((el, i) => el.classList.toggle('active', i === idx));
+                counter.textContent = `${idx + 1} / ${slides.length}`;
+                progressFill.style.width = `${((idx + 1) / slides.length) * 100}%`;
+                prevBtn.disabled = idx === 0;
+                nextBtn.disabled = idx === slides.length - 1;
+                location.hash = `#${idx + 1}`;
+                window.scrollTo({ top: 0, behavior: 'instant' });
+            }
+
+            function go(n) {
+                idx = clamp(n, 0, slides.length - 1);
+                render();
+            }
+            function next() { go(idx + 1); }
+            function prev() { go(idx - 1); }
+
+            prevBtn.addEventListener('click', prev);
+            nextBtn.addEventListener('click', next);
+
+            window.addEventListener('keydown', (e) => {
+                const k = e.key;
+                if (k === 'ArrowRight' || k === ' ' || k === 'PageDown') {
+                    e.preventDefault();
+                    next();
+                } else if (k === 'ArrowLeft' || k === 'PageUp') {
+                    e.preventDefault();
+                    prev();
+                } else if (k === 'Home') {
+                    e.preventDefault();
+                    go(0);
+                } else if (k === 'End') {
+                    e.preventDefault();
+                    go(slides.length - 1);
+                }
+            });
+
+            window.addEventListener('hashchange', () => go(getIndexFromHash()));
+
+            go(getIndexFromHash());
+        })();
+    </script>
 
 </body>
 
