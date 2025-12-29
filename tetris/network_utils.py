@@ -328,6 +328,9 @@ class NetworkManager:
                 self.paused = True
             elif msg['type'] == 'resume':
                 self.paused = False
+            elif msg['type'] == 'shutdown':
+                self.connected = False
+                break
             elif msg['type'] == 'state':
                 with self.lock:
                     self.players = msg['data']
@@ -356,6 +359,12 @@ class NetworkManager:
         return 0
 
     def close(self):
+        if self.is_server:
+            for sock in list(self.clients.keys()):
+                try:
+                    self._send_packet(sock, {'type': 'shutdown'})
+                except:
+                    pass
         self.running = False
         if self.client: self.client.close()
 
