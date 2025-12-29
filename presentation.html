@@ -200,15 +200,17 @@
             -_can_move(shot, piece, dx, dy)
             }
 
-            class UI_Button {
+            class Button {
             +rect
             +text
             +draw(screen)
             +is_clicked(event)
             }
 
-            class AI_Agent {
+            class WeightedAI {
+            +weights : list
             +get_best_move(board, piece)
+            +get_features(board)
             }
 
             Main --> GameEngine : Calls
@@ -216,8 +218,8 @@
             PlayerContext o-- Piece : Has Current/Next
             PlayerContext o-- Shot : Has Board State
             PlayerContext ..> Handler : Uses for Logic
-            GameEngine ..> UI_Button : Uses in UI
-            PlayerContext o-- AI_Agent : Optional
+            GameEngine ..> Button : Uses in UI
+            PlayerContext o-- WeightedAI : Uses Strategy
         </div>
     </div>
 
