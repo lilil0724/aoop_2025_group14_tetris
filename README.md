@@ -139,16 +139,21 @@ python tetris/main.py
 
 ## 5. 專案結構
 
-*   `tetris/`
-    *   `main.py`: 遊戲程式入口，負責初始化與場景切換。
-    *   `game_engine.py`: 核心遊戲迴圈，處理遊戲邏輯與狀態更新。
-    *   `ai_weighted.py`: 基於 Dellacherie 演算法的權重式 AI。
-    *   `ai_heuristic.py`: 啟發式 AI 邏輯。
-    *   `ai_player_nn.py`: (實驗性) 基於類神經網路的 AI 模型。
-    *   `network_utils.py`: 處理區域網路 (LAN) 連線與資料傳輸。
-    *   `pieces.py`: 定義俄羅斯方塊的形狀與旋轉邏輯。
-    *   `settings.py`: 全域設定檔 (按鍵綁定、音量、AI 速度)。
-    *   `ui.py` & `menus.py`: 負責畫面繪製與選單介面。
+*   `tetris/`（主要遊戲程式）
+    *   `main.py`: 程式入口；初始化 Pygame/字型/音效與 BGM，顯示主選單並依模式呼叫 `run_game`。
+    *   `game_engine.py`: 核心遊戲迴圈；整合 SOLO/PVP/PVE/LAN 的遊戲流程，處理輸入、AI 行為、盤面更新、垃圾行/同步與暫停。
+    *   `menus.py`: 所有選單/介面流程；包含主選單、設定(解析度/音量/Ghost)、控制鍵設定、AI 選擇、LAN 連線流程、暫停與結算畫面。
+    *   `ui.py`: 畫面繪製與 UI 元件；提供 `Button`/`Slider`、盤面與 Ghost piece 繪製、分數/Next/垃圾條與特效文字。
+    *   `config.py`: 遊戲常數與版面配置；包含格子尺寸、解析度、配色、形狀資料、計分表與垃圾行/攻擊規則，並提供 `update_config()` 動態重算布局。
+    *   `settings.py`: 可調整的全域設定；包含預設鍵位綁定、音量、Ghost 顯示、AI 速度等。
+    *   `pieces.py`: 俄羅斯方塊資料結構 `Piece`；保存位置/形狀/旋轉/顏色，並提供取得方塊格子座標的方法。
+    *   `shots.py`: 盤面狀態資料結構 `Shot`；保存棋盤格子/顏色、分數與消行數，以及對戰用的垃圾行、連擊、B2B、特效計時等狀態。
+    *   `Handler.py`: 遊戲規則與碰撞/盤面操作；包含移動/旋轉/下落/硬降、固定方塊、消行與全消判定、計算攻擊量、插入垃圾行與合法性檢查。
+    *   `network_utils.py`: LAN 對戰網路層；負責 Host/Join、封包收送、玩家狀態同步、垃圾行統計與 start/pause/restart 控制訊號。
+    *   `ai_weighted.py`: Weighted AI；以 Dellacherie 類特徵加權評分，窮舉落點並回傳最佳 `(x, rotation)`。
+    *   `ai_heuristic.py`: Heuristic AI；計算盤面特徵並用固定權重 `BEST_WEIGHTS` 評分，窮舉落點選出最佳移動。
+    *   `tetris_env.py`: AI/訓練用的簡化環境；提供盤面與方塊的模擬、合法性檢查、鎖定與消行、特徵計算與 reward 參數。
+    *   `ai_player_nn.py`:（實驗性）PyTorch 類神經網路 AI；定義模型與推論流程，將盤面特徵輸入模型評分以選擇落點。
 
 ---
 
