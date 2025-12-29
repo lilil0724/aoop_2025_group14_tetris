@@ -388,14 +388,22 @@
                 <div class="slide">
                     <h2>4. 核心類別說明 (Key Classes)</h2>
                     <ul>
-                        <li><strong>GameEngine (遊戲引擎)</strong>: 系統的核心驅動器，負責管理遊戲主迴圈、處理場景切換（選單、遊戲、結束畫面），並協調多玩家模式下的狀態更新。</li>
-                        <li><strong>PlayerContext (玩家上下文)</strong>: 封裝了單一玩家的所有運行時資訊，包括其專屬的 <code>Shot</code>、<code>Piece</code>、AI 代理以及網路同步狀態，實現了邏輯上的隔離。</li>
-                        <li><strong>Piece (方塊)</strong>: 封裝方塊的幾何資訊。包含座標、形狀種類（I, J, L, O, S, T, Z）及旋轉狀態，並提供 <code>getCells()</code> 方法計算實際佔用的網格位置。</li>
-                        <li><strong>Shot (棋盤狀態)</strong>: 代表遊戲的靜態盤面。負責維護 2D 網格數據、計算分數、追蹤消行數，以及管理對戰機制中的垃圾行（Garbage Lines）緩衝區。</li>
-                        <li><strong>Handler (邏輯處理器)</strong>: 採用「邏輯與資料分離」的設計，包含所有物理判定。負責碰撞檢測、旋轉合法性、消行邏輯以及對戰攻擊力的數值計算。</li>
-                        <li><strong>AI_Module (AI 模組)</strong>: 實作啟發式搜尋演算法。透過分析盤面特徵（如高度、空洞、平整度）評估所有可能的落點，並在極短時間內選出最優操作。</li>
-                        <li><strong>NetworkManager (網路管理員)</strong>: 負責區域網路連線。基於 Socket 實作，處理封包序列化、廣播玩家狀態、同步垃圾行攻擊，並確保多端遊戲狀態的一致性。</li>
-                        <li><strong>UI (使用者介面)</strong>: 負責遊戲畫面的渲染。包含繪製玩家盤面、預測落點（Ghost Piece）、顯示下一個方塊以及處理所有選單按鈕的視覺呈現。</li>
+                        <li><strong>GameEngine (遊戲引擎)</strong>: 系統的核心驅動器，負責管理遊戲主迴圈、處理場景切換（選單、遊戲、結束畫面），並協調多玩家模式下的狀態更新。
+                        </li>
+                        <li><strong>PlayerContext (玩家上下文)</strong>: 封裝了單一玩家的所有運行時資訊，包括其專屬的
+                            <code>Shot</code>、<code>Piece</code>、AI 代理以及網路同步狀態，實現了邏輯上的隔離。</li>
+                        <li><strong>Piece (方塊)</strong>: 封裝方塊的幾何資訊。包含座標、形狀種類（I, J, L, O, S, T, Z）及旋轉狀態，並提供
+                            <code>getCells()</code> 方法計算實際佔用的網格位置。</li>
+                        <li><strong>Shot (棋盤狀態)</strong>: 代表遊戲的靜態盤面。負責維護 2D 網格數據、計算分數、追蹤消行數，以及管理對戰機制中的垃圾行（Garbage
+                            Lines）緩衝區。</li>
+                        <li><strong>Handler (邏輯處理器)</strong>: 採用「邏輯與資料分離」的設計，包含所有物理判定。負責碰撞檢測、旋轉合法性、消行邏輯以及對戰攻擊力的數值計算。
+                        </li>
+                        <li><strong>AI_Module (AI 模組)</strong>: 實作啟發式搜尋演算法。透過分析盤面特徵（如高度、空洞、平整度）評估所有可能的落點，並在極短時間內選出最優操作。
+                        </li>
+                        <li><strong>NetworkManager (網路管理員)</strong>: 負責區域網路連線。基於 Socket
+                            實作，處理封包序列化、廣播玩家狀態、同步垃圾行攻擊，並確保多端遊戲狀態的一致性。</li>
+                        <li><strong>UI (使用者介面)</strong>: 負責遊戲畫面的渲染。包含繪製玩家盤面、預測落點（Ghost Piece）、顯示下一個方塊以及處理所有選單按鈕的視覺呈現。
+                        </li>
                     </ul>
                 </div>
 
@@ -429,7 +437,11 @@
                             <tr>
                                 <td><strong>訓練難度 (Training)</strong></td>
                                 <td><strong>低</strong>。可以使用遺傳演算法 (Genetic Algorithm) 快速收斂出最佳權重。</td>
-                                <td><strong>極高</strong>。需要數百萬次的訓練回合 (Episodes)，且容易發生「災難性遺忘」。</td>
+                                <td><strong>極高</strong>。需要數百萬次的訓練回合 (Episodes)，且容易發生「災難性遺忘」。<br>
+                                    <span style="display:block; margin-top:4px; font-size:0.9em; color:#e74c3c;">
+                                        <em>例：AI 剛學會堆高拿分 (Tetris)，卻因為參數被覆蓋，突然忘記如何在危急時消行保命。</em>
+                                    </span>
+                                </td>
                             </tr>
                             <tr>
                                 <td><strong>狀態空間 (State Space)</strong></td>
