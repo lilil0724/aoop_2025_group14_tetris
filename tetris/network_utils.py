@@ -134,6 +134,8 @@ class NetworkManager:
         """ Host calls this to signal game restart """
         if not self.is_server: return
         
+        self.paused = False # Reset pause state
+        
         # Reset garbage tracking
         self.total_garbage_sent = 0
         self.total_garbage_received = 0
@@ -312,6 +314,7 @@ class NetworkManager:
                 self.game_started = True
             elif msg['type'] == 'restart':
                 self.restart_requested = True
+                self.paused = False # Reset pause state
                 # Reset local garbage tracking
                 self.total_garbage_sent = 0
                 self.total_garbage_received = 0

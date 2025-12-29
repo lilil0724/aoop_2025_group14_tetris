@@ -97,8 +97,10 @@ def main():
                 break
             elif result == "RESTART":
                 if current_mode == 'LAN':
-                    if net_mgr: net_mgr.close()
-                    break
+                    if net_mgr:
+                        if net_mgr.is_server:
+                            net_mgr.restart_game()
+                        net_mgr.restart_requested = False
                 continue 
             
             if isinstance(result, tuple) and result[0] == "GAME_OVER":
