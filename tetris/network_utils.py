@@ -26,6 +26,7 @@ class NetworkManager:
         self.server_garbage_received = {} # {id: total_received}
         
         self.game_started = False # [NEW] Game start flag
+        self.restart_requested = False # [NEW] Restart flag
 
     def get_all_ips(self):
         ip_list = []
@@ -125,6 +126,22 @@ class NetworkManager:
         for sock in self.clients:
             try:
                 self._send_packet(sock, {'type': 'start'})
+            except:
+                pass
+
+    def restart_game(self):
+        """ Host calls this to signal game restart """
+        if not self.is_server: return
+        
+        # Reset garbage tracking
+        self.total_garbage_sent = 0
+        self.total_garbage_received = 0
+        self.server_garbage_tracking = {pid: 0 for pid in self.server_garbage_tracking}
+        self.server_garbage_received = {pid: 0 for pid in self.server_garbage_received}
+        
+        for sock in self.clients:
+            try:
+                self._send_packet(sock, {'type': 'restart'})
             except:
                 pass
 
@@ -268,6 +285,11 @@ class NetworkManager:
                 print(f"Assigned ID: {self.my_id}")
             elif msg['type'] == 'start':
                 self.game_started = True
+            elif msg['type'] == 'restart':
+                self.restart_requested = True
+                # Reset local garbage tracking
+                self.total_garbage_sent = 0
+                self.total_garbage_received = 0
             elif msg['type'] == 'state':
                 with self.lock:
                     self.players = msg['data']
