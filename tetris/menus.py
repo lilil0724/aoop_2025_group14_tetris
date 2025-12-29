@@ -83,7 +83,7 @@ def settings_menu(screen):
                     config.update_config(new_unit=6, new_width=1600, new_height=900)
                 
                 # Re-init screen
-                pg.display.set_mode((config.width, config.height), pg.RESIZABLE)
+                pg.display.set_mode((config.width, config.height))
                 # Recalculate center positions for this menu
                 center_x = config.width // 2 - btn_w // 2
                 center_y = config.height // 3
@@ -517,7 +517,11 @@ def lan_menu(screen, font):
                             host_thread.start()
                             waiting = True
                             clock = pg.time.Clock()
-                            btn_start = Button(center_x, start_y + 400, btn_w, btn_h, "Start Game", "START", color=(50, 200, 50))
+                            
+                            # Fix button position (Center horizontally, place at bottom)
+                            btn_start_x = config.width // 2 - btn_w // 2
+                            btn_start_y = config.height // 2 + 150
+                            btn_start = Button(btn_start_x, btn_start_y, btn_w, btn_h, "Start Game", "START", color=(50, 200, 50))
                             while waiting:
                                 current_players = len(net_mgr.clients) + 1
                                 for e in pg.event.get():
@@ -592,7 +596,7 @@ def lan_menu(screen, font):
         pg.display.update()
 
 # --- Game Over Screen (修正為接收 List) ---
-def game_over_screen(screen, results):
+def game_over_screen(screen, results, net_mgr=None):
     pg.display.set_caption("Game Over")
     
     font_title = pg.font.SysFont('Comic Sans MS', 50, bold=True)
@@ -669,6 +673,10 @@ def game_over_screen(screen, results):
             if event.type == pg.QUIT: pg.quit(); sys.exit()
             for btn in buttons:
                 if btn.is_clicked(event): return btn.action_code
+        
+        if net_mgr and net_mgr.restart_requested:
+            return "RESTART"
+
         for btn in buttons: btn.draw(screen)
         pg.display.update()
 

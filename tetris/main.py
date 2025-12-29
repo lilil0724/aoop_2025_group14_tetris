@@ -41,8 +41,8 @@ def main():
     except Exception as e:
         print(f"Warning: Sound initialization failed: {e}")
 
-    # Add RESIZABLE flag to ensure window decoration is shown
-    screen = pg.display.set_mode((config.width, config.height), pg.RESIZABLE)
+    # Remove RESIZABLE flag to prevent window maximization issues
+    screen = pg.display.set_mode((config.width, config.height))
     pg.display.set_caption("Tetris Battle") # Ensure title is set
     
     clock = pg.time.Clock()
@@ -112,11 +112,17 @@ def main():
                     except Exception as e:
                         print(f"Error loading result BGM: {e}")
 
-                action = game_over_screen(screen, result[1])
+                action = game_over_screen(screen, result[1], net_mgr=net_mgr)
                 if action == "RESTART":
                     if current_mode == 'LAN':
-                        if net_mgr: net_mgr.close()
-                        break
+                        if net_mgr:
+                            if net_mgr.is_server:
+                                net_mgr.restart_game()
+                            
+                            # Reset the flag for the next game
+                            net_mgr.restart_requested = False
+                            
+                            # Do NOT close net_mgr, just continue loop
                     
                     # Switch back to Game BGM for restart
                     if os.path.exists(game_bgm_path):
