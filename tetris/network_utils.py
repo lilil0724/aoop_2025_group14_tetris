@@ -27,6 +27,7 @@ class NetworkManager:
         
         self.game_started = False # [NEW] Game start flag
         self.restart_requested = False # [NEW] Restart flag
+        self.paused = False # [NEW] Pause flag
 
     def get_all_ips(self):
         ip_list = []
@@ -139,9 +140,33 @@ class NetworkManager:
         self.server_garbage_tracking = {pid: 0 for pid in self.server_garbage_tracking}
         self.server_garbage_received = {pid: 0 for pid in self.server_garbage_received}
         
+        # Clear players data to prevent old state from leaking
+        with self.lock:
+            self.players = {}
+        
         for sock in self.clients:
             try:
                 self._send_packet(sock, {'type': 'restart'})
+            except:
+                pass
+
+    def pause_game(self):
+        """ Host calls this to signal game pause """
+        if not self.is_server: return
+        self.paused = True
+        for sock in self.clients:
+            try:
+                self._send_packet(sock, {'type': 'pause'})
+            except:
+                pass
+
+    def resume_game(self):
+        """ Host calls this to signal game resume """
+        if not self.is_server: return
+        self.paused = False
+        for sock in self.clients:
+            try:
+                self._send_packet(sock, {'type': 'resume'})
             except:
                 pass
 
@@ -290,6 +315,13 @@ class NetworkManager:
                 # Reset local garbage tracking
                 self.total_garbage_sent = 0
                 self.total_garbage_received = 0
+                # Clear players data
+                with self.lock:
+                    self.players = {}
+            elif msg['type'] == 'pause':
+                self.paused = True
+            elif msg['type'] == 'resume':
+                self.paused = False
             elif msg['type'] == 'state':
                 with self.lock:
                     self.players = msg['data']
