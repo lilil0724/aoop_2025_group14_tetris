@@ -4,7 +4,7 @@
 
 ## 1. 環境安裝
 
-請確保您的電腦已安裝 Python 3.x。
+請確保您的電腦已安裝 Python 3.11。
 
 ### 使用虛擬環境安裝 
 
@@ -49,7 +49,7 @@
 2.  **建立 conda 環境**  
     > ⚠️ `tetris-battle` 為環境名稱，可依個人喜好自行命名
     ```bash
-    conda create -n tetris-battle python=3.x -y
+    conda create -n tetris-battle python=3.11 -y
     ```
 
 3.  **啟動 conda 環境**：
