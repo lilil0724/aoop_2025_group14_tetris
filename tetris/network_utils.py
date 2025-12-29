@@ -298,6 +298,9 @@ class NetworkManager:
                     if candidates:
                         target = random.choice(candidates)
                         self.server_garbage_received[target] = self.server_garbage_received.get(target, 0) + diff
+                        # Keep players dict in sync so host (server) can read received garbage directly
+                        if target in self.players:
+                            self.players[target]['total_garbage_received'] = self.server_garbage_received[target]
 
     def _client_loop(self):
         while self.running:
@@ -342,9 +345,10 @@ class NetworkManager:
 
     def get_garbage_diff(self):
         """ Returns new garbage amount since last check """
+        pid = 0 if self.is_server else self.my_id
         with self.lock:
-            if self.my_id is not None and self.my_id in self.players:
-                server_recv = self.players[self.my_id].get('total_garbage_received', 0)
+            if pid is not None and pid in self.players:
+                server_recv = self.players[pid].get('total_garbage_received', 0)
                 diff = server_recv - self.total_garbage_received
                 if diff > 0:
                     self.total_garbage_received = server_recv
