@@ -144,7 +144,8 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                     'piece_x': me.piece.x, 'piece_y': me.piece.y, 'piece_shape': me.piece.shape,
                     'piece_rot': me.piece.rotation, 'piece_color': me.piece.color,
                     'next_piece_shape': me.next_piece.shape, 'next_piece_color': me.next_piece.color,
-                    'game_over': me.game_over
+                    'game_over': me.game_over,
+                    'total_garbage_sent': net_mgr.total_garbage_sent
                 }
                 net_mgr.send(local_data)
 
@@ -322,7 +323,8 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                     'piece_x': me.piece.x, 'piece_y': me.piece.y, 'piece_shape': me.piece.shape,
                     'piece_rot': me.piece.rotation, 'piece_color': me.piece.color,
                     'next_piece_shape': me.next_piece.shape, 'next_piece_color': me.next_piece.color,
-                    'game_over': me.game_over
+                    'game_over': me.game_over,
+                    'total_garbage_sent': net_mgr.total_garbage_sent
                 }
                 net_mgr.send(local_data)
                 # Give a tiny bit of time for the packet to go out
