@@ -83,7 +83,7 @@ def settings_menu(screen):
                     config.update_config(new_unit=6, new_width=1600, new_height=900)
                 
                 # Re-init screen
-                pg.display.set_mode((config.width, config.height), pg.RESIZABLE)
+                pg.display.set_mode((config.width, config.height))
                 # Recalculate center positions for this menu
                 center_x = config.width // 2 - btn_w // 2
                 center_y = config.height // 3

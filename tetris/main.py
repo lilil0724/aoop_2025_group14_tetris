@@ -41,8 +41,8 @@ def main():
     except Exception as e:
         print(f"Warning: Sound initialization failed: {e}")
 
-    # Add RESIZABLE flag to ensure window decoration is shown
-    screen = pg.display.set_mode((config.width, config.height), pg.RESIZABLE)
+    # Remove RESIZABLE flag to prevent window maximization issues
+    screen = pg.display.set_mode((config.width, config.height))
     pg.display.set_caption("Tetris Battle") # Ensure title is set
     
     clock = pg.time.Clock()
