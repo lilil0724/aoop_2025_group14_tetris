@@ -285,11 +285,43 @@ def controls_menu(screen):
 
 # --- 暫停選單 ---
 
-def pause_menu(screen):
+def pause_menu(screen, net_mgr=None, mode=None):
     overlay = pg.Surface((config.width, config.height))
     overlay.set_alpha(150)
     overlay.fill((0, 0, 0))
     screen.blit(overlay, (0, 0))
+    
+    font_pause = pg.font.SysFont('Comic Sans MS', 50, bold=True)
+    font_info = pg.font.SysFont('Arial', 30)
+    
+    # Guest in LAN mode
+    if mode == 'LAN' and net_mgr and not net_mgr.is_server:
+        text_surf = font_pause.render("PAUSED BY HOST", True, (255, 255, 255))
+        text_rect = text_surf.get_rect(center=(config.width//2, config.height//2 - 50))
+        screen.blit(text_surf, text_rect)
+        
+        info_surf = font_info.render("Please wait for host to resume...", True, (200, 200, 200))
+        info_rect = info_surf.get_rect(center=(config.width//2, config.height//2 + 20))
+        screen.blit(info_surf, info_rect)
+        
+        pg.display.update()
+        
+        while True:
+            # Check for resume signal
+            if not net_mgr.paused:
+                return "RESUME"
+            
+            # Check for restart signal
+            if net_mgr.restart_requested:
+                return "RESTART"
+                
+            for event in pg.event.get():
+                if event.type == pg.QUIT: pg.quit(); sys.exit()
+                # Guest cannot unpause manually
+            
+            pg.time.delay(100)
+            
+    # Normal Pause Menu (Host or Single Player)
     btn_w, btn_h = 220, 60
     center_x = config.width // 2 - btn_w // 2
     center_y = config.height // 2 - 100
@@ -297,17 +329,33 @@ def pause_menu(screen):
     btn_restart = Button(center_x, center_y + 80, btn_w, btn_h, "Restart", "RESTART", color=(200, 150, 50))
     btn_menu = Button(center_x, center_y + 160, btn_w, btn_h, "Main Menu", "MENU", color=(200, 50, 50))
     buttons = [btn_resume, btn_restart, btn_menu]
-    font_pause = pg.font.SysFont('Comic Sans MS', 50, bold=True)
+    
     text_surf = font_pause.render("PAUSED", True, (255, 255, 255))
     text_rect = text_surf.get_rect(center=(config.width//2, config.height//6))
     screen.blit(text_surf, text_rect)
     pg.display.update()
+    
+    # If Host, send pause signal
+    if mode == 'LAN' and net_mgr and net_mgr.is_server:
+        net_mgr.pause_game()
+        
     while True:
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()
-            if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE: return "RESUME"
+            if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE: 
+                if mode == 'LAN' and net_mgr and net_mgr.is_server:
+                    net_mgr.resume_game()
+                return "RESUME"
             for btn in buttons:
-                if btn.is_clicked(event): return btn.action_code
+                if btn.is_clicked(event): 
+                    if btn.action_code == "RESUME":
+                        if mode == 'LAN' and net_mgr and net_mgr.is_server:
+                            net_mgr.resume_game()
+                    elif btn.action_code == "RESTART":
+                        # Host restart logic handled in main.py, but we need to ensure signal is sent if needed
+                        # Actually main.py handles it if we return "RESTART"
+                        pass
+                    return btn.action_code
         for btn in buttons: btn.draw(screen)
         pg.display.update()
 
@@ -401,23 +449,55 @@ def lan_menu(screen, font):
     center_x = config.width // 2
     
     # Dynamic layout for small screens
-    if config.height < 700:
-        row1_y = start_y + 120
+    if config.height < 600:
+        # Compact layout for 1024x576
+        title_y_center = 30
+        ip_y_center = 60
+        start_y = 85
+        spacing = 65
+        
+        row1_y = 220
+        row2_y = 290
+        cnt_surf_y = 360
+        
+        btn_2p.rect.y = 390
+        btn_3p.rect.y = 390
+        btn_4p.rect.y = 390
+        btn_back.rect.y = 460
+        
+        # Adjust Title and IP positions manually in the loop
+        
+    elif config.height < 700:
+        title_y_center = config.height//8
+        ip_y_center = config.height//8 + 50
+        start_y = 100
+        spacing = 70
+        row1_y = start_y + 140
         row2_y = row1_y + 70
+        cnt_surf_y = row2_y + 60
+        
         btn_2p.rect.y = row2_y + 100
         btn_3p.rect.y = row2_y + 100
         btn_4p.rect.y = row2_y + 100
         btn_back.rect.y = row2_y + 180
-        cnt_surf_y = row2_y + 60
     else:
+        title_y_center = config.height//8
+        ip_y_center = config.height//8 + 50
+        start_y = config.height // 4
+        spacing = 80
         row1_y = start_y + 160
         row2_y = row1_y + 80
+        cnt_surf_y = row2_y + 80
+        
         btn_2p.rect.y = row2_y + 120
         btn_3p.rect.y = row2_y + 120
         btn_4p.rect.y = row2_y + 120
         btn_back.rect.y = row2_y + 200
-        cnt_surf_y = row2_y + 80
     
+    # Update Start/Back buttons position
+    btn_host.rect.y = start_y
+    btn_join.rect.y = start_y + spacing
+
     # IP Input Rect (Centered)
     # Total width approx: Label(100) + Box(300) = 400
     input_rect = pg.Rect(center_x - 100, row1_y, input_w, input_h)
@@ -436,20 +516,21 @@ def lan_menu(screen, font):
     current_ip_idx = 0
     my_local_ip = all_ips[current_ip_idx]
     
-    btn_cycle_ip = Button(config.width//2 + 250, config.height//8 + 50, 100, 40, "Next IP", "CYCLE_IP", color=(100, 100, 100))
+    btn_cycle_ip = Button(config.width//2 + 250, ip_y_center, 100, 40, "Next IP", "CYCLE_IP", color=(100, 100, 100))
     
     while True:
         screen.fill(config.background_color)
         title_surf = pg.font.SysFont('Comic Sans MS', 40, bold=True).render("LAN SETUP", True, (255, 255, 255))
-        title_rect = title_surf.get_rect(center=(config.width//2, config.height//8))
+        title_rect = title_surf.get_rect(center=(config.width//2, title_y_center))
         screen.blit(title_surf, title_rect)
 
         # Display Local IP
         ip_display_surf = font.render(f"Your IP: {my_local_ip}", True, (100, 255, 100))
-        ip_display_rect = ip_display_surf.get_rect(center=(config.width//2, config.height//8 + 50))
+        ip_display_rect = ip_display_surf.get_rect(center=(config.width//2, ip_y_center))
         screen.blit(ip_display_surf, ip_display_rect)
         
         if len(all_ips) > 1:
+            btn_cycle_ip.rect.y = ip_y_center - 20 # Center vertically with text
             btn_cycle_ip.draw(screen)
         
         # Draw Input Box (IP)
@@ -474,16 +555,6 @@ def lan_menu(screen, font):
 
         cnt_surf = font.render("Max Players:", True, (200, 200, 200))
         screen.blit(cnt_surf, cnt_surf.get_rect(center=(center_x, cnt_surf_y)))
-        
-        # Update player buttons position
-        btn_2p.rect.y = row2_y + 120
-        btn_3p.rect.y = row2_y + 120
-        btn_4p.rect.y = row2_y + 120
-        
-        # Update Start/Back buttons position
-        btn_host.rect.y = start_y
-        btn_join.rect.y = start_y + 80
-        btn_back.rect.y = row2_y + 200
         
         for event in pg.event.get():
             if event.type == pg.QUIT: pg.quit(); sys.exit()

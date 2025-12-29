@@ -96,8 +96,12 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
     surrendered = False
     
     while running:
+        # Check if paused by host (Guest side)
+        if mode == 'LAN' and net_mgr and not net_mgr.is_server and net_mgr.paused:
+            paused = True
+
         if paused:
-            action = pause_menu(screen)
+            action = pause_menu(screen, net_mgr=net_mgr, mode=mode)
             if action == "RESUME": paused = False
             elif action == "RESTART": return "RESTART"
             elif action == "MENU": return "MENU"
@@ -106,6 +110,11 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
         # --- Network Sync (LAN) ---
         if mode == 'LAN':
             if not net_mgr.connected: return "MENU"
+            
+            # Check for restart signal from Host
+            if net_mgr.restart_requested:
+                return "RESTART"
+                
             remote_data = net_mgr.get_latest_data()
             for pid, data in remote_data.items():
                 if pid == my_id: continue
@@ -148,7 +157,13 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                     surrendered = True
 
             if event.type == pg.KEYDOWN:
-                if event.key == pg.K_ESCAPE: paused = True
+                if event.key == pg.K_ESCAPE:
+                    if mode == 'LAN':
+                        # Only Host can pause in LAN
+                        if net_mgr and net_mgr.is_server:
+                            paused = True
+                    else:
+                        paused = True
                 
                 # --- 模式區分 ---
                 if mode == 'PVP':
@@ -374,20 +389,86 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                 surrender_btn.draw(screen)
                      
         else:
+            # 3P / 4P Layout
             sorted_pids = [my_id] + sorted([pid for pid in players if pid != my_id])
-            scale = 0.75
-            scaled_w, scaled_h = int(surf_w * scale), int(surf_h * scale)
-            gap = 20
-            total_w = len(players) * scaled_w + (len(players)-1) * gap
-            start_x = (config.width - total_w) // 2
-            y_pos = 50
-            for i, pid in enumerate(sorted_pids):
-                p = players[pid]
-                surf = draw_player_ui_surface(p.shot, p.piece, p.next_piece, font, p.name)
-                surf = pg.transform.smoothscale(surf, (scaled_w, scaled_h))
-                x_pos = start_x + i * (scaled_w + gap)
-                screen.blit(surf, (x_pos, y_pos))
-                if p.game_over: _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "OUT")
+            
+            if total_players == 3:
+                # Try 3 columns first
+                gap = 20
+                scale_w = (config.width - 4 * gap) / 3
+                scale = min(1.0, scale_w / surf_w)
+                
+                # If scale is too small (e.g. < 0.6), try 2 rows (2 top, 1 bottom)
+                if scale < 0.6:
+                     # 2 Rows layout
+                     scale_w = (config.width - 3 * gap) / 2
+                     scale_h = (config.height - 3 * gap) / 2
+                     scale = min(1.0, min(scale_w / surf_w, scale_h / surf_h))
+                     
+                     scaled_w, scaled_h = int(surf_w * scale), int(surf_h * scale)
+                     
+                     # Row 1 (2 players)
+                     start_x_r1 = (config.width - (2 * scaled_w + gap)) // 2
+                     y_r1 = gap
+                     
+                     # Row 2 (1 player)
+                     start_x_r2 = (config.width - scaled_w) // 2
+                     y_r2 = y_r1 + scaled_h + gap
+                     
+                     for i, pid in enumerate(sorted_pids):
+                        p = players[pid]
+                        surf = draw_player_ui_surface(p.shot, p.piece, p.next_piece, font, p.name)
+                        surf = pg.transform.smoothscale(surf, (scaled_w, scaled_h))
+                        
+                        if i < 2:
+                            x_pos = start_x_r1 + i * (scaled_w + gap)
+                            y_pos = y_r1
+                        else:
+                            x_pos = start_x_r2
+                            y_pos = y_r2
+                            
+                        screen.blit(surf, (x_pos, y_pos))
+                        if p.game_over: _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "OUT")
+                else:
+                    # 3 Columns layout
+                    scaled_w, scaled_h = int(surf_w * scale), int(surf_h * scale)
+                    total_w = 3 * scaled_w + 2 * gap
+                    start_x = (config.width - total_w) // 2
+                    y_pos = (config.height - scaled_h) // 2
+                    
+                    for i, pid in enumerate(sorted_pids):
+                        p = players[pid]
+                        surf = draw_player_ui_surface(p.shot, p.piece, p.next_piece, font, p.name)
+                        surf = pg.transform.smoothscale(surf, (scaled_w, scaled_h))
+                        x_pos = start_x + i * (scaled_w + gap)
+                        screen.blit(surf, (x_pos, y_pos))
+                        if p.game_over: _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "OUT")
+            
+            else:
+                # 4 Players (2x2 Grid)
+                gap = 20
+                scale_w = (config.width - 3 * gap) / 2
+                scale_h = (config.height - 3 * gap) / 2
+                scale = min(1.0, min(scale_w / surf_w, scale_h / surf_h))
+                
+                scaled_w, scaled_h = int(surf_w * scale), int(surf_h * scale)
+                
+                start_x = (config.width - (2 * scaled_w + gap)) // 2
+                start_y = (config.height - (2 * scaled_h + gap)) // 2
+                
+                for i, pid in enumerate(sorted_pids):
+                    p = players[pid]
+                    surf = draw_player_ui_surface(p.shot, p.piece, p.next_piece, font, p.name)
+                    surf = pg.transform.smoothscale(surf, (scaled_w, scaled_h))
+                    
+                    col = i % 2
+                    row = i // 2
+                    
+                    x_pos = start_x + col * (scaled_w + gap)
+                    y_pos = start_y + row * (scaled_h + gap)
+                    
+                    screen.blit(surf, (x_pos, y_pos))
+                    if p.game_over: _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "OUT")
 
         me = players[my_id]
         if getattr(me.shot, 'tetris_timer', 0) > 0: me.shot.tetris_timer -= 1
