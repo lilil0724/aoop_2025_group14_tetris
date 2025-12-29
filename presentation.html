@@ -391,9 +391,11 @@
                         <li><strong>GameEngine (遊戲引擎)</strong>: 系統的核心驅動器，負責管理遊戲主迴圈、處理場景切換（選單、遊戲、結束畫面），並協調多玩家模式下的狀態更新。
                         </li>
                         <li><strong>PlayerContext (玩家上下文)</strong>: 封裝了單一玩家的所有運行時資訊，包括其專屬的
-                            <code>Shot</code>、<code>Piece</code>、AI 代理以及網路同步狀態，實現了邏輯上的隔離。</li>
+                            <code>Shot</code>、<code>Piece</code>、AI 代理以及網路同步狀態，實現了邏輯上的隔離。
+                        </li>
                         <li><strong>Piece (方塊)</strong>: 封裝方塊的幾何資訊。包含座標、形狀種類（I, J, L, O, S, T, Z）及旋轉狀態，並提供
-                            <code>getCells()</code> 方法計算實際佔用的網格位置。</li>
+                            <code>getCells()</code> 方法計算實際佔用的網格位置。
+                        </li>
                         <li><strong>Shot (棋盤狀態)</strong>: 代表遊戲的靜態盤面。負責維護 2D 網格數據、計算分數、追蹤消行數，以及管理對戰機制中的垃圾行（Garbage
                             Lines）緩衝區。</li>
                         <li><strong>Handler (邏輯處理器)</strong>: 採用「邏輯與資料分離」的設計，包含所有物理判定。負責碰撞檢測、旋轉合法性、消行邏輯以及對戰攻擊力的數值計算。
@@ -477,12 +479,13 @@
                                 <li><strong>學習困難</strong>：CNN/DQN 難以處理這種「單點失誤導致長遠崩盤」的因果關係。</li>
                             </ul>
 
-                            <h3 style="color: #2980b9; border-bottom: 2px solid #2980b9; padding-bottom: 5px;">2. 運算效率
-                                (Efficiency)</h3>
+                            <h3 style="color: #2980b9; border-bottom: 2px solid #2980b9; padding-bottom: 5px;">2.
+                                運算效率與核心缺陷</h3>
                             <ul>
-                                <li><strong>Weighted Heuristic</strong>：簡單的線性加權總和 $\sum (w_i \cdot f_i)$，CPU 即可在 1ms
-                                    內完成。</li>
-                                <li><strong>CNN/DQN</strong>：涉及大量矩陣乘法與卷積，無 GPU 加速難以達成即時性。</li>
+                                <li><strong>Weighted Heuristic (優點)</strong>：簡單的線性加權總和 $\sum (w_i \cdot f_i)$，CPU 即可在
+                                    1ms 內完成極速運算。</li>
+                                <li><strong>DQN (探索風險)</strong>：訓練時需「機率探索」，在低容錯遊戲中，隨機錯誤易導致崩盤。</li>
+                                <li><strong>CNN (特徵盲點)</strong>：擅長抓特徵但不知好壞。例如看到空洞卻不知其在底層的致命性 (位置敏感性)。</li>
                             </ul>
                         </div>
                         <div>
