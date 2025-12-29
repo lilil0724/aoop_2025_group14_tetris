@@ -122,7 +122,7 @@
             overflow: hidden;
         }
 
-        .progress > div {
+        .progress>div {
             height: 100%;
             width: 0%;
             background: linear-gradient(90deg, #3498db, #7c3aed);
@@ -221,6 +221,15 @@
         import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
         mermaid.initialize({ startOnLoad: true });
     </script>
+    <!-- MathJax for rendering math equations -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']]
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 
 <body>
@@ -236,57 +245,57 @@
         <main class="deck-stage">
             <div class="slides" id="slides">
 
-    <div class="slide">
-        <h1>Tetris Battle - 專案簡報</h1>
-        <p style="text-align: center; font-size: 1.2em; color: #666;">Group 14</p>
-        <p style="text-align: center; font-size: 1.05em; color: #666; margin-top: 10px;">112511016 黃柏凱</p>
-        <p style="text-align: center; font-size: 1.05em; color: #666; margin-top: 6px;">112511018 張斈宇</p>
-    </div>
+                <div class="slide">
+                    <h1>Tetris Battle - 專案簡報</h1>
+                    <p style="text-align: center; font-size: 1.2em; color: #666;">Group 14</p>
+                    <p style="text-align: center; font-size: 1.05em; color: #666; margin-top: 10px;">112511016 黃柏凱</p>
+                    <p style="text-align: center; font-size: 1.05em; color: #666; margin-top: 6px;">112511018 張斈宇</p>
+                </div>
 
-    <div class="slide">
-        <h2>1. 遊戲介紹 (Introduction)</h2>
-        <h3>專案概述</h3>
-        <p>這是一個基於 Python 和 Pygame 開發的俄羅斯方塊對戰遊戲 (Tetris Battle)。除了經典的單人模式外，重點在於實現多人對戰與 AI 對戰功能。</p>
+                <div class="slide">
+                    <h2>1. 遊戲介紹 (Introduction)</h2>
+                    <h3>專案概述</h3>
+                    <p>這是一個基於 Python 和 Pygame 開發的俄羅斯方塊對戰遊戲 (Tetris Battle)。除了經典的單人模式外，重點在於實現多人對戰與 AI 對戰功能。</p>
 
-        <h3>主要特色</h3>
-        <ul>
-            <li><strong>多種遊戲模式</strong>：
-                <ul>
-                    <li><strong>SOLO</strong>: 單人練習模式</li>
-                    <li><strong>PVP (Local)</strong>: 本地雙人對戰</li>
-                    <li><strong>LAN (Network)</strong>: 區域網路連線對戰</li>
-                    <li><strong>PVE (AI)</strong>: 與電腦 AI 進行對戰</li>
-                </ul>
-            </li>
-            <li><strong>對戰機制</strong>：包含垃圾行 (Garbage Lines) 攻擊系統、B2B (Back-to-Back) 加成。</li>
-            <li><strong>現代化機制</strong>：7-Bag 方塊生成、Ghost Piece (落點預測)功能。</li>
-        </ul>
-    </div>
+                    <h3>主要特色</h3>
+                    <ul>
+                        <li><strong>多種遊戲模式</strong>：
+                            <ul>
+                                <li><strong>SOLO</strong>: 單人練習模式</li>
+                                <li><strong>PVP (Local)</strong>: 本地雙人對戰</li>
+                                <li><strong>LAN (Network)</strong>: 區域網路連線對戰</li>
+                                <li><strong>PVE (AI)</strong>: 與電腦 AI 進行對戰</li>
+                            </ul>
+                        </li>
+                        <li><strong>對戰機制</strong>：包含垃圾行 (Garbage Lines) 攻擊系統、B2B (Back-to-Back) 加成。</li>
+                        <li><strong>現代化機制</strong>：7-Bag 方塊生成、Ghost Piece (落點預測)、Hold 功能。</li>
+                    </ul>
+                </div>
 
-    <div class="slide">
-        <h2>2. 系統架構 (System Architecture)</h2>
-        <h3>開發環境</h3>
-        <ul>
-            <li><strong>語言</strong>: Python 3.11</li>
-            <li><strong>核心函式庫</strong>: Pygame (圖形介面與事件處理)</li>
-            <li><strong>其他工具</strong>: Numpy (AI 矩陣運算), Socket (網路連線)</li>
-        </ul>
+                <div class="slide">
+                    <h2>2. 系統架構 (System Architecture)</h2>
+                    <h3>開發環境</h3>
+                    <ul>
+                        <li><strong>語言</strong>: Python 3.11</li>
+                        <li><strong>核心函式庫</strong>: Pygame (圖形介面與事件處理)</li>
+                        <li><strong>其他工具</strong>: Numpy (AI 矩陣運算), Socket (網路連線)</li>
+                    </ul>
 
-        <h3>專案結構</h3>
-        <ul>
-            <li><code>main.py</code>: 程式入口，負責初始化與場景切換。</li>
-            <li><code>game_engine.py</code>: 核心遊戲迴圈，管理遊戲狀態。</li>
-            <li><code>pieces.py</code> & <code>shots.py</code>: 定義方塊與棋盤資料結構。</li>
-            <li><code>Handler.py</code>: 負責方塊移動、旋轉與碰撞檢測邏輯。</li>
-            <li><code>ai_*.py</code>: AI 演算法實作。</li>
-            <li><code>ui.py</code> & <code>menus.py</code>: 使用者介面與選單系統。</li>
-        </ul>
-    </div>
+                    <h3>專案結構</h3>
+                    <ul>
+                        <li><code>main.py</code>: 程式入口，負責初始化與場景切換。</li>
+                        <li><code>game_engine.py</code>: 核心遊戲迴圈，管理遊戲狀態。</li>
+                        <li><code>pieces.py</code> & <code>shots.py</code>: 定義方塊與棋盤資料結構。</li>
+                        <li><code>Handler.py</code>: 負責方塊移動、旋轉與碰撞檢測邏輯。</li>
+                        <li><code>ai_*.py</code>: AI 演算法實作。</li>
+                        <li><code>ui.py</code> & <code>menus.py</code>: 使用者介面與選單系統。</li>
+                    </ul>
+                </div>
 
-    <div class="slide">
-        <h2>3. OOP Class Diagram (類別圖)</h2>
-        <div id="classDiagramBlock">
-                <pre class="mermaid">classDiagram
+                <div class="slide">
+                    <h2>3. OOP Class Diagram (類別圖)</h2>
+                    <div id="classDiagramBlock">
+                        <pre class="mermaid">classDiagram
     direction TB
 
     class Main {
@@ -367,107 +376,148 @@
     PlayerContext o-- AI_Module
     GameEngine ..> NetworkManager
 </pre>
-    </div>
-    </div>
+                    </div>
+                </div>
 
-    <div class="slide">
-        <h2>4. 核心類別說明 (Key Classes)</h2>
-        <ul>
-            <li><strong>GameEngine (遊戲引擎)</strong>: 系統的核心驅動器，負責管理遊戲主迴圈、處理場景切換（選單、遊戲、結束畫面），並協調多玩家模式下的狀態更新。</li>
-            <li><strong>PlayerContext (玩家上下文)</strong>: 封裝了單一玩家的所有運行時資訊，包括其專屬的 <code>Shot</code>、<code>Piece</code>、AI 代理以及網路同步狀態，實現了邏輯上的隔離。</li>
-            <li><strong>Piece (方塊)</strong>: 封裝方塊的幾何資訊。包含座標、形狀種類（I, J, L, O, S, T, Z）及旋轉狀態，並提供 <code>getCells()</code> 方法計算實際佔用的網格位置。</li>
-            <li><strong>Shot (棋盤狀態)</strong>: 代表遊戲的靜態盤面。負責維護 2D 網格數據、計算分數、追蹤消行數，以及管理對戰機制中的垃圾行（Garbage Lines）緩衝區。</li>
-            <li><strong>Handler (邏輯處理器)</strong>: 採用「邏輯與資料分離」的設計，包含所有物理判定。負責碰撞檢測、旋轉合法性、消行邏輯以及對戰攻擊力的數值計算。</li>
-            <li><strong>AI_Module (AI 模組)</strong>: 實作啟發式搜尋演算法。透過分析盤面特徵（如高度、空洞、平整度）評估所有可能的落點，並在極短時間內選出最優操作。</li>
-            <li><strong>NetworkManager (網路管理員)</strong>: 負責區域網路連線。基於 Socket 實作，處理封包序列化、廣播玩家狀態、同步垃圾行攻擊，並確保多端遊戲狀態的一致性。</li>
-        </ul>
-    </div>
+                <div class="slide">
+                    <h2>4. 核心類別說明 (Key Classes)</h2>
+                    <ul>
+                        <li><strong>Piece (方塊)</strong>: 代表一個正在掉落的俄羅斯方塊。屬性包含座標、形狀、旋轉狀態。</li>
+                        <li><strong>Shot (棋盤狀態)</strong>: 儲存遊戲盤面的靜態數據 (status 陣列) 與玩家狀態 (分數、垃圾行)。</li>
+                        <li><strong>Handler (邏輯處理器)</strong>: 包含多個靜態方法 (Static Methods)，如 <code>moveLeft</code>,
+                            <code>rotate</code>，將邏輯與資料分離。
+                        </li>
+                    </ul>
+                </div>
 
-    <div class="slide">
-        <h2>5. AI 演算法選擇與比較</h2>
+                <div class="slide">
+                    <h2>5. AI 演算法選擇與比較</h2>
 
-        <div class="highlight">
-            <h3>為什麼選擇 Weighted Heuristic (權重啟發式)？</h3>
-            <p>在本專案中，我們選擇了基於特徵權重的啟發式演算法，而非深度強化學習 (如 DQN 或 CNN)，原因如下：</p>
-        </div>
+                    <div class="highlight">
+                        <h3>為什麼選擇 Weighted Heuristic (權重啟發式)？</h3>
+                        <p>在本專案中，我們選擇了基於特徵權重的啟發式演算法，而非深度強化學習 (如 DQN 或 CNN)，原因如下：</p>
+                    </div>
 
-        <table class="comparison-table">
-            <thead>
-                <tr>
-                    <th>比較項目</th>
-                    <th>Weighted Heuristic (本專案採用)</th>
-                    <th>Deep RL (DQN / CNN)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>可解釋性 (Explainability)</strong></td>
-                    <td><strong>高</strong>。我們可以清楚知道 AI 是因為「想要降低高度」或「避免空洞」而做出決策。</td>
-                    <td><strong>低</strong>。神經網路是黑盒子，難以理解為何在特定情況下做出某個操作。</td>
-                </tr>
-                <tr>
-                    <td><strong>運算效能 (Performance)</strong></td>
-                    <td><strong>極快</strong>。僅需簡單的矩陣運算，適合在 Python 中即時運行 (60 FPS)。</td>
-                    <td><strong>較慢</strong>。需要大量的矩陣乘法與推論，若無 GPU 加速可能導致遊戲延遲。</td>
-                </tr>
-                <tr>
-                    <td><strong>訓練難度 (Training)</strong></td>
-                    <td><strong>低</strong>。可以使用遺傳演算法 (Genetic Algorithm) 快速收斂出最佳權重。</td>
-                    <td><strong>極高</strong>。需要數百萬次的訓練回合 (Episodes)，且容易發生「災難性遺忘」。</td>
-                </tr>
-                <tr>
-                    <td><strong>狀態空間 (State Space)</strong></td>
-                    <td>透過特徵提取 (Feature Extraction) 大幅簡化了狀態空間。</td>
-                    <td>直接處理原始像素或網格，狀態空間過於龐大，收斂困難。</td>
-                </tr>
-            </tbody>
-        </table>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>比較項目</th>
+                                <th>Weighted Heuristic (本專案採用)</th>
+                                <th>Deep RL (DQN / CNN)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>可解釋性 (Explainability)</strong></td>
+                                <td><strong>高</strong>。我們可以清楚知道 AI 是因為「想要降低高度」或「避免空洞」而做出決策。</td>
+                                <td><strong>低</strong>。神經網路是黑盒子，難以理解為何在特定情況下做出某個操作。</td>
+                            </tr>
+                            <tr>
+                                <td><strong>運算效能 (Performance)</strong></td>
+                                <td><strong>極快</strong>。僅需簡單的矩陣運算，適合在 Python 中即時運行 (60 FPS)。</td>
+                                <td><strong>較慢</strong>。需要大量的矩陣乘法與推論，若無 GPU 加速可能導致遊戲延遲。</td>
+                            </tr>
+                            <tr>
+                                <td><strong>訓練難度 (Training)</strong></td>
+                                <td><strong>低</strong>。可以使用遺傳演算法 (Genetic Algorithm) 快速收斂出最佳權重。</td>
+                                <td><strong>極高</strong>。需要數百萬次的訓練回合 (Episodes)，且容易發生「災難性遺忘」。</td>
+                            </tr>
+                            <tr>
+                                <td><strong>狀態空間 (State Space)</strong></td>
+                                <td>透過特徵提取 (Feature Extraction) 大幅簡化了狀態空間。</td>
+                                <td>直接處理原始像素或網格，狀態空間過於龐大，收斂困難。</td>
+                            </tr>
+                        </tbody>
+                    </table>
 
-        <h3>實作細節</h3>
-        <p>AI 透過評估當前盤面的特徵來決定最佳落點，總共包含 <strong>8 個核心權重</strong>：</p>
-        <ul>
-            <li><strong>Landing Height</strong>: 落點高度 (越低越好，避免過早堆疊)。</li>
-            <li><strong>Max Height</strong>: 盤面最高點高度 (控制整體高度)。</li>
-            <li><strong>Holes</strong>: 空洞數量 (越少越好，洞會阻礙消行)。</li>
-            <li><strong>Row Transitions</strong>: 行變換次數 (表面平整度，越平整越好)。</li>
-            <li><strong>Column Transitions</strong>: 列變換次數 (垂直方向的平整度)。</li>
-            <li><strong>Well Sums / Depth</strong>: 豎井深度 (適度保留以利於一次消除四排 Tetris)。</li>
-            <li><strong>Deep Wells</strong>: 深度大於等於 2 的深井數量。</li>
-            <li><strong>Cumulative Wells</strong>: 累計井分 (對井的深度進行加權懲罰)。</li>
-        </ul>
-    </div>
+                    <h3>實作細節</h3>
+                    <p>AI 透過評估當前盤面的特徵來決定最佳落點，總共包含 <strong>8 個核心權重</strong>：</p>
+                    <ul>
+                        <li><strong>Landing Height</strong>: 落點高度 (越低越好，避免過早堆疊)。</li>
+                        <li><strong>Max Height</strong>: 盤面最高點高度 (控制整體高度)。</li>
+                        <li><strong>Holes</strong>: 空洞數量 (越少越好，洞會阻礙消行)。</li>
+                        <li><strong>Row Transitions</strong>: 行變換次數 (表面平整度，越平整越好)。</li>
+                        <li><strong>Column Transitions</strong>: 列變換次數 (垂直方向的平整度)。</li>
+                        <li><strong>Well Sums / Depth</strong>: 豎井深度 (適度保留以利於一次消除四排 Tetris)。</li>
+                        <li><strong>Deep Wells</strong>: 深度大於等於 2 的深井數量。</li>
+                        <li><strong>Cumulative Wells</strong>: 累計井分 (對井的深度進行加權懲罰)。</li>
+                    </ul>
+                </div>
 
-    <div class="slide">
-        <h2>6. 結論 (Conclusion)</h2>
-        <ul>
-            <li>本專案成功實作了一個功能完整的俄羅斯方塊對戰遊戲。</li>
-            <li>運用 OOP 物件導向設計，使程式碼結構清晰，易於擴充。</li>
-            <li>選擇了最適合專案規模的 AI 演算法，在效能與強度之間取得平衡。</li>
-        </ul>
-    </div>
+                <div class="slide">
+                    <h2>6. 深入分析：為何放棄 CNN/DQN？</h2>
 
-    <div class="slide">
-        <h2>7. Vibe Coding 心得</h2>
-        <h3>1. AI Agent 的方便性</h3>
-        <ul>
-            <li><strong>協助編寫程式碼</strong>：快速生成樣板與邏輯。</li>
-            <li><strong>分析整個 Codebase</strong>：跨檔案理解專案結構。</li>
-            <li><strong>自行操作 Terminal</strong>：自動執行測試與環境設定。</li>
-            <li><strong>幫助操作不熟悉的領域</strong>：降低學習新技術的門檻。</li>
-        </ul>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                        <div>
+                            <h3 style="color: #c0392b; border-bottom: 2px solid #c0392b; padding-bottom: 5px;">1.
+                                遊戲性質：即時反應</h3>
+                            <ul>
+                                <li><strong>高 FPS 壓力</strong>：Tetris 需在 16ms (60FPS) 內完成決策。</li>
+                                <li><strong>延遲代價</strong>：神經網路推論過慢會導致卡頓 (Lag) 或錯過鎖定時間 (Lock Delay)。</li>
+                            </ul>
 
-        <h3>2. Vibe Coding 的不方便之處</h3>
-        <ul>
-            <li><strong>Code 生成不符合原本的想法</strong>：有時需要多次引導才能達到預期。</li>
-            <li><strong>詢問幾次都生成同一結果</strong>：在遇到邏輯死胡同時，AI 可能會重複錯誤。</li>
-        </ul>
-    </div>
+                            <h3 style="color: #2980b9; border-bottom: 2px solid #2980b9; padding-bottom: 5px;">2. 運算效率
+                                (Efficiency)</h3>
+                            <ul>
+                                <li><strong>Weighted Heuristic</strong>：簡單的線性加權總和 $\sum (w_i \cdot f_i)$，CPU 即可在 1ms
+                                    內完成。</li>
+                                <li><strong>CNN/DQN</strong>：涉及大量矩陣乘法與卷積，無 GPU 加速難以達成即時性。</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h3 style="color: #d35400; border-bottom: 2px solid #d35400; padding-bottom: 5px;">3.
+                                獎勵機制：空洞的致命性</h3>
+                            <ul>
+                                <li><strong>Hole (空洞)</strong>：在 Tetris 中製造空洞代價極高。</li>
+                                <li><strong>RL 的困境</strong>：RL 依賴消行獎勵 (Sparse Reward)，難以歸因於「50 步前的一個小空洞」(Credit
+                                    Assignment Problem)。</li>
+                                <li><strong>Heuristic 優勢</strong>：直接設定 <code>Weight_Holes = -7.9</code>，AI 立刻學會避免。</li>
+                            </ul>
+
+                            <h3 style="color: #8e44ad; border-bottom: 2px solid #8e44ad; padding-bottom: 5px;">4. 訓練陷阱
+                                (Training Pitfalls)</h3>
+                            <ul>
+                                <li><strong>規避扣分 (Reward Hacking)</strong>：AI 發現「自殺」比「掙扎後被扣更多分」划算，導致開局即自殺。</li>
+                                <li><strong>怪異策略 (Weird Strategy)</strong>：為了避免低高度時的複雜判定 (如井深扣分)，AI 竟學會「堆高高再慢慢消」的危險打法。
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="slide">
+                    <h2>7. 結論 (Conclusion)</h2>
+                    <ul>
+                        <li>本專案成功實作了一個功能完整的俄羅斯方塊對戰遊戲。</li>
+                        <li>運用 OOP 物件導向設計，使程式碼結構清晰，易於擴充。</li>
+                        <li>選擇了最適合專案規模的 AI 演算法，在效能與強度之間取得平衡。</li>
+                    </ul>
+                </div>
+
+                <div class="slide">
+                    <h2>8. Vibe Coding 心得</h2>
+                    <h3>1. AI Agent 的方便性</h3>
+                    <ul>
+                        <li><strong>協助編寫程式碼</strong>：快速生成樣板與邏輯。</li>
+                        <li><strong>分析整個 Codebase</strong>：跨檔案理解專案結構。</li>
+                        <li><strong>自行操作 Terminal</strong>：自動執行測試與環境設定。</li>
+                        <li><strong>幫助操作不熟悉的領域</strong>：降低學習新技術的門檻。</li>
+                    </ul>
+
+                    <h3>2. Vibe Coding 的不方便之處</h3>
+                    <ul>
+                        <li><strong>Code 生成不符合原本的想法</strong>：有時需要多次引導才能達到預期。</li>
+                        <li><strong>詢問幾次都生成同一結果</strong>：在遇到邏輯死胡同時，AI 可能會重複錯誤。</li>
+                    </ul>
+                </div>
 
             </div>
         </main>
 
         <footer class="deck-footer">
-            <div class="progress" aria-label="Slide progress"><div id="progressFill"></div></div>
+            <div class="progress" aria-label="Slide progress">
+                <div id="progressFill"></div>
+            </div>
             <div class="nav">
                 <button class="nav-btn" id="prevBtn">上一頁</button>
                 <button class="nav-btn" id="nextBtn">下一頁</button>
