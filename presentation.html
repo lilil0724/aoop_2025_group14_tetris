@@ -216,47 +216,25 @@
             }
 
             class Button {
+            +rect
+            +text
             +draw(screen)
             +is_clicked(event)
             }
 
             class WeightedAI {
-            +find_best_move(shot, piece)
+            +weights : list
+            +get_best_move(board, piece)
+            +get_features(board)
             }
 
-            class HeuristicAI {
-            +get_ai_move_heuristic(shot, piece)
-            }
-
-            class NetworkManager {
-            +send(data)
-            +get_latest_data()
-            +get_garbage_diff()
-            +restart_game()
-            +close()
-            }
-
-            %% Exact-to-code mapping
-            note for game_engine "module: tetris/game_engine.py"
-            note for PlayerContext "inner class inside game_engine.run_game"
-            note for Shot "class: tetris/shots.py"
-            note for Piece "class: tetris/pieces.py"
-            note for Handler "module: tetris/Handler.py"
-            note for Button "class: tetris/ui.py (Button)"
-            note for WeightedAI "class: tetris/ai_weighted.py"
-            note for HeuristicAI "module: tetris/ai_heuristic.py"
-            note for NetworkManager "class: tetris/network_utils.py"
-
-            %% Relationships (top-down)
-            Main --> game_engine : calls
-            game_engine *-- PlayerContext : creates/manages
-            PlayerContext o-- Shot : owns board state
-            PlayerContext o-- Piece : current/next
-            PlayerContext ..> Handler : uses rules
-            PlayerContext o-- WeightedAI : ai_agent (WEIGHT)
-            PlayerContext ..> HeuristicAI : heuristic move
-            game_engine ..> Button : uses (Surrender)
-            game_engine ..> NetworkManager : uses (LAN)
+            Main --> GameEngine : Calls
+            GameEngine *-- PlayerContext : Manages
+            PlayerContext o-- Piece : Has Current/Next
+            PlayerContext o-- Shot : Has Board State
+            PlayerContext ..> Handler : Uses for Logic
+            GameEngine ..> Button : Uses in UI
+            PlayerContext o-- WeightedAI : Uses Strategy
         </div>
     </div>
 
