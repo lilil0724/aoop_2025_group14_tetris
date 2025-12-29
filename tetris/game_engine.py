@@ -445,28 +445,24 @@ def run_game(screen, clock, font, mode, ai_mode=None, net_mgr=None, sounds=None)
                         if p.game_over: _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "OUT")
             
             else:
-                # 4 Players (2x2 Grid)
-                gap = 20
-                scale_w = (config.width - 3 * gap) / 2
-                scale_h = (config.height - 3 * gap) / 2
-                scale = min(1.0, min(scale_w / surf_w, scale_h / surf_h))
-                
+                # 4 Players: single horizontal row to maximize board height
+                gap = 12
+                avail_w = (config.width - gap * 5) / 4
+                avail_h = config.height - gap * 2
+                scale = min(1.0, min(avail_w / surf_w, avail_h / surf_h))
+
                 scaled_w, scaled_h = int(surf_w * scale), int(surf_h * scale)
-                
-                start_x = (config.width - (2 * scaled_w + gap)) // 2
-                start_y = (config.height - (2 * scaled_h + gap)) // 2
-                
+
+                total_w = scaled_w * 4 + gap * 3
+                start_x = max(gap, (config.width - total_w) // 2)
+                y_pos = (config.height - scaled_h) // 2
+
                 for i, pid in enumerate(sorted_pids):
                     p = players[pid]
                     surf = draw_player_ui_surface(p.shot, p.piece, p.next_piece, font, p.name)
                     surf = pg.transform.smoothscale(surf, (scaled_w, scaled_h))
-                    
-                    col = i % 2
-                    row = i // 2
-                    
-                    x_pos = start_x + col * (scaled_w + gap)
-                    y_pos = start_y + row * (scaled_h + gap)
-                    
+
+                    x_pos = start_x + i * (scaled_w + gap)
                     screen.blit(surf, (x_pos, y_pos))
                     if p.game_over: _draw_game_over_overlay(screen, surf, x_pos, y_pos, font, "OUT")
 
