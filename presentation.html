@@ -294,39 +294,69 @@
     }
 
     class GameEngine {
-        +run_game()
+        +run_game(screen, clock, font, mode, ai_mode, net_mgr)
+        +get_new_bag()
     }
 
     class PlayerContext {
         +shot: Shot
         +piece: Piece
+        +next_piece: Piece
+        +bag: list
+        +game_over: bool
+        +is_local: bool
         +is_ai: bool
+        +name: string
+        +ai_agent: object
     }
 
     class Shot {
         +status: list
+        +color: list
         +score: int
+        +line_count: int
+        +pending_garbage: int
+        +combo_count: int
+        +is_b2b: bool
     }
 
     class Piece {
+        +x: int
+        +y: int
         +shape: string
         +rotation: int
+        +color: tuple
+        +is_fixed: bool
+        +getCells()
     }
 
     class Handler {
-        +move()
-        +rotate()
-        +eliminateRows()
+        +moveLeft(shot, piece)
+        +moveRight(shot, piece)
+        +drop(shot, piece)
+        +instantDrop(shot, piece)
+        +rotate(shot, piece)
+        +rotateCCW(shot, piece)
+        +fixPiece(shot, piece)
+        +eliminateFilledRows(shot, piece)
+        +calculateAttack(clears, combo, b2b, all_clear)
+        +insertGarbage(shot, lines)
+        -_can_move(shot, piece, dx, dy)
     }
 
     class AI_Module {
-        +WeightedAI()
-        +HeuristicAI()
+        +find_best_move(shot, piece)
+        +evaluate(features)
+        +get_features(board)
     }
 
     class NetworkManager {
-        +host_game()
-        +join_game()
+        +is_server: bool
+        +connected: bool
+        +host_game(port, max_players, ip)
+        +join_game(ip, port)
+        +send(data)
+        +start_game()
     }
 
     Main --> GameEngine
@@ -411,6 +441,23 @@
             <li>本專案成功實作了一個功能完整的俄羅斯方塊對戰遊戲。</li>
             <li>運用 OOP 物件導向設計，使程式碼結構清晰，易於擴充。</li>
             <li>選擇了最適合專案規模的 AI 演算法，在效能與強度之間取得平衡。</li>
+        </ul>
+    </div>
+
+    <div class="slide">
+        <h2>7. Vibe Coding 心得</h2>
+        <h3>1. AI Agent 的方便性</h3>
+        <ul>
+            <li><strong>協助編寫程式碼</strong>：快速生成樣板與邏輯。</li>
+            <li><strong>分析整個 Codebase</strong>：跨檔案理解專案結構。</li>
+            <li><strong>自行操作 Terminal</strong>：自動執行測試與環境設定。</li>
+            <li><strong>幫助操作不熟悉的領域</strong>：降低學習新技術的門檻。</li>
+        </ul>
+
+        <h3>2. Vibe Coding 的不方便之處</h3>
+        <ul>
+            <li><strong>Code 生成不符合原本的想法</strong>：有時需要多次引導才能達到預期。</li>
+            <li><strong>詢問幾次都生成同一結果</strong>：在遇到邏輯死胡同時，AI 可能會重複錯誤。</li>
         </ul>
     </div>
 
