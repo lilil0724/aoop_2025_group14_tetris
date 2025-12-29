@@ -155,15 +155,20 @@
         <h2>3. OOP Class Diagram (類別圖)</h2>
         <div class="mermaid">
             classDiagram
+            direction TB
+
+            %% Layer 1 (Top): Entry point
             class Main {
             +main()
             }
 
-            class GameEngine {
-            +run_game()
+            %% Layer 2: Game loop / orchestration (module)
+            class game_engine {
+            +run_game(...)
             +get_new_bag()
             }
 
+            %% Layer 3: Per-player runtime context (inner class)
             class PlayerContext {
             +Shot shot
             +Piece piece
@@ -171,6 +176,19 @@
             +list bag
             +bool is_ai
             +bool is_local
+            +str name
+            +object ai_agent
+            }
+
+            %% Layer 4: Data objects & services
+            class Shot {
+            +list status
+            +list color
+            +int score
+            +int line_count
+            +int pending_garbage
+            +int combo_count
+            +bool is_b2b
             }
 
             class Piece {
@@ -183,41 +201,62 @@
             +getCells()
             }
 
-            class Shot {
-            +list color
-            +list status
-            +int score
-            +int pending_garbage
-            +int combo_count
-            }
-
             class Handler {
             +moveLeft(shot, piece)
             +moveRight(shot, piece)
             +drop(shot, piece)
+            +instantDrop(shot, piece)
             +rotate(shot, piece)
+            +rotateCCW(shot, piece)
             +fixPiece(shot, piece)
+            +eliminateFilledRows(shot, piece)
+            +calculateAttack(...)
+            +insertGarbage(shot, lines_to_add)
             -_can_move(shot, piece, dx, dy)
             }
 
-            class UI_Button {
-            +rect
-            +text
+            class Button {
             +draw(screen)
             +is_clicked(event)
             }
 
-            class AI_Agent {
-            +get_best_move(board, piece)
+            class WeightedAI {
+            +find_best_move(shot, piece)
             }
 
-            Main --> GameEngine : Calls
-            GameEngine *-- PlayerContext : Manages
-            PlayerContext o-- Piece : Has Current/Next
-            PlayerContext o-- Shot : Has Board State
-            PlayerContext ..> Handler : Uses for Logic
-            GameEngine ..> UI_Button : Uses in UI
-            PlayerContext o-- AI_Agent : Optional
+            class HeuristicAI {
+            +get_ai_move_heuristic(shot, piece)
+            }
+
+            class NetworkManager {
+            +send(data)
+            +get_latest_data()
+            +get_garbage_diff()
+            +restart_game()
+            +close()
+            }
+
+            %% Exact-to-code mapping
+            note for game_engine "module: tetris/game_engine.py"
+            note for PlayerContext "inner class inside game_engine.run_game"
+            note for Shot "class: tetris/shots.py"
+            note for Piece "class: tetris/pieces.py"
+            note for Handler "module: tetris/Handler.py"
+            note for Button "class: tetris/ui.py (Button)"
+            note for WeightedAI "class: tetris/ai_weighted.py"
+            note for HeuristicAI "module: tetris/ai_heuristic.py"
+            note for NetworkManager "class: tetris/network_utils.py"
+
+            %% Relationships (top-down)
+            Main --> game_engine : calls
+            game_engine *-- PlayerContext : creates/manages
+            PlayerContext o-- Shot : owns board state
+            PlayerContext o-- Piece : current/next
+            PlayerContext ..> Handler : uses rules
+            PlayerContext o-- WeightedAI : ai_agent (WEIGHT)
+            PlayerContext ..> HeuristicAI : heuristic move
+            game_engine ..> Button : uses (Surrender)
+            game_engine ..> NetworkManager : uses (LAN)
         </div>
     </div>
 

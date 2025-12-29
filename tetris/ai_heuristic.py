@@ -6,7 +6,7 @@ try:
 except ImportError:
     print("Warning: tetris_env.py not found. Heuristic AI might fail.")
 
-# 特徵權重 (這就是 AI 的性格參數)
+# 特徵權重 
 BEST_WEIGHTS = np.array([-1.41130507, -2.23926392, -0.78272467, -4.00369693, -0.67902086, -0.449347,
                          -0.1623215, -0.91940282])
 
