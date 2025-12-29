@@ -1,9 +1,0 @@
-標題 : vibe coding心得
-1.AI agent的方便性
-    a.協助編寫程式碼
-    b.分析整個codebase
-    c.自行操作terminal
-    d.幫助我們操作不熟悉的領域
-2.vide coding的不方便之處
-    a.code生成不符合原本的想法
-    b.詢問幾次都生成同一結果
