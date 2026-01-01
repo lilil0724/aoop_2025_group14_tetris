@@ -199,3 +199,19 @@ conda remove -n tetris-battle --all
 ```
 
 tetris-battle 為環境名稱，若建立時使用不同名稱，請替換為實際的環境名稱。
+
+---
+## 8.附錄
+
+## solo mode
+<img width="1272" height="713" alt="image" src="https://github.com/user-attachments/assets/687ffb70-4277-48d2-b807-6bf9f480b0a6" />
+
+## 1 vs AI mode
+<img width="1271" height="710" alt="image" src="https://github.com/user-attachments/assets/432a6fd2-9b66-4288-b6f9-42a334ce3f6e" />
+
+## LAN setup
+<img width="1271" height="714" alt="image" src="https://github.com/user-attachments/assets/38934fa3-7ffe-43b4-9e29-f7e11e61c31a" />
+
+## class diagram
+
+
