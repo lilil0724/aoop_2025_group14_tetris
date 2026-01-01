@@ -213,5 +213,6 @@ tetris-battle 為環境名稱，若建立時使用不同名稱，請替換為實
 <img width="1271" height="714" alt="image" src="https://github.com/user-attachments/assets/38934fa3-7ffe-43b4-9e29-f7e11e61c31a" />
 
 ## class diagram
+<img width="733" height="760" alt="image" src="https://github.com/user-attachments/assets/f4e27172-7cb7-4f95-9862-c4a530764a09" />
 
 
